@@ -1,48 +1,128 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Compass } from 'lucide-react';
+import { Section } from '../components/ui/Section';
+import { StrategyCard } from '../components/decision/StrategyCard';
+import { EvidencePanel } from '../components/decision/EvidencePanel';
+import { RecommendationBanner } from '../components/decision/RecommendationBanner';
+import { pulseboardMockData } from '../mock/pulseboard';
+import { Target, Calendar, Lock } from 'lucide-react';
 
 export const Decision: React.FC = () => {
+  const { decisionWorkspace } = pulseboardMockData;
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('strat-a');
+
+  const selectedStrategy = decisionWorkspace.strategies.find((s) => s.id === selectedStrategyId) || decisionWorkspace.strategies[0];
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. PAGE HEADER */}
       <PageHeader
-        title="Decision"
+        title="Decision Workspace"
         description="Founder decision workspace."
         badge={<Badge variant="teal">Decision Engine</Badge>}
       />
 
-      <Card padding="lg">
-        <CardHeader>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      {/* 2. GOAL & CONSTRAINTS SUMMARY */}
+      <Section>
+        <Card padding="lg" style={{ borderLeft: '4px solid var(--color-accent-blue)' }}>
+          <CardHeader>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  backgroundColor: 'var(--color-accent-blue-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-accent-blue)',
+                }}
+              >
+                <Target size={18} />
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    color: 'var(--color-text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  FOUNDER GOAL
+                </div>
+                <CardTitle style={{ fontSize: '1.0625rem', marginTop: '0.125rem' }}>
+                  Strategic Decision Target
+                </CardTitle>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Badge variant="info">
+                <Calendar size={12} />
+                <span>Horizon: {decisionWorkspace.horizon}</span>
+              </Badge>
+              <Badge variant="danger">
+                <Lock size={12} />
+                <span>Shield: Enterprise SSO</span>
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent style={{ marginTop: '0.5rem' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--color-governor-teal-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-governor-teal)',
+                fontSize: '1rem',
+                fontWeight: 600,
+                color: 'var(--color-text-main)',
+                lineHeight: 1.5,
               }}
             >
-              <Compass size={20} />
+              "{decisionWorkspace.goal}"
             </div>
-            <div>
-              <CardTitle style={{ fontSize: '1.0625rem' }}>Decision Intelligence Workspace</CardTitle>
-              <CardDescription>Founder decision workspace.</CardDescription>
+            <div
+              style={{
+                fontSize: '0.8125rem',
+                color: 'var(--color-text-secondary)',
+                marginTop: '0.5rem',
+              }}
+            >
+              <strong>Primary Constraint:</strong> {decisionWorkspace.primaryConstraint}
             </div>
-          </div>
-          <Badge variant="default">Idle</Badge>
-        </CardHeader>
-        <CardContent>
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-            System ready to run governor analysis and recommendation routines.
-          </p>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Section>
+
+      {/* 3. GOVERNOR RECOMMENDATION BANNER */}
+      <Section>
+        <RecommendationBanner
+          recommendedTitle={selectedStrategy.title}
+          reasoning={decisionWorkspace.recommendationReasoning}
+        />
+      </Section>
+
+      {/* 4. CANDIDATE STRATEGIES COMPARISON */}
+      <Section title="Candidate Strategies" description="Compare evaluated strategy paths under capacity, budget, and commitment constraints.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {decisionWorkspace.strategies.map((strat) => (
+            <StrategyCard
+              key={strat.id}
+              strategy={strat}
+              isSelected={strat.id === selectedStrategyId}
+              onSelect={() => setSelectedStrategyId(strat.id)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      {/* 5. EVIDENCE & CONSTRAINTS */}
+      <Section title="Supporting Evidence" description="Empirical signals and customer feedback validating strategy rankings.">
+        <EvidencePanel evidence={decisionWorkspace.evidence} />
+      </Section>
     </div>
   );
 };
