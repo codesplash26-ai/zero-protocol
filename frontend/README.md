@@ -1,75 +1,38 @@
-# React + TypeScript + Vite
+# Experiment Governor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### Zero Protocol — CodeSplash'26 Agentic AI Phase
 
-Currently, two official plugins are available:
+Experiment Governor is an agentic decision system designed to help early-stage startup founders and product/growth leaders decide **what to experiment on next under real organizational constraints**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Instead of simply ranking experiments, Experiment Governor evaluates available budget, engineering capacity, customer traffic, existing commitments, dependencies, opportunity cost, and the information an experiment can provide. It produces an auditable strategy that can include conditional experiment sequences, approvals, controlled actions, and event-driven replanning.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Problem
 
-## Expanding the ESLint configuration
+Early-stage startups often have more potential experiments than their available budget, engineering capacity, customer traffic, and management attention can support.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Choosing an experiment in isolation can:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Consume engineering capacity needed for an existing commitment
+- Exhaust limited budget or customer traffic
+- Delay important projects
+- Encourage premature investment before key assumptions are validated
+- Become outdated when circumstances change
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Experiment Governor addresses this by treating experimentation as a **sequential organizational decision problem**.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The system helps answer:
 
-```
+> **What should the startup learn next, given its current resources, commitments, uncertainty, and strategic goals?**
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Solution
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Experiment Governor receives a high-level founder objective together with the startup's current organizational state and proposed experiments.
 
-```
+It then follows an agentic decision loop:
+
+```text
+Perceive → Decide → Act → Observe → Adapt
