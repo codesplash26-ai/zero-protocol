@@ -60,11 +60,15 @@ def get_experiments() -> list[Experiment]:
 
 def check_feasibility(
     strategy: CandidateStrategy,
+    state: OrganizationState | None = None,
+    experiments: list[Experiment] | None = None,
 ) -> FeasibilityResult:
 
-    state = get_current_state()
+    if state is None:
+        state = get_current_state()
 
-    experiments = get_experiments()
+    if experiments is None:
+        experiments = get_experiments()
 
     experiment_map = {
         experiment.id: experiment
@@ -178,11 +182,15 @@ def check_feasibility(
 
 def calculate_consequences(
     strategy: CandidateStrategy,
+    state: OrganizationState | None = None,
+    experiments: list[Experiment] | None = None,
 ) -> ConsequenceResult:
 
-    state = get_current_state()
+    if state is None:
+        state = get_current_state()
 
-    experiments = get_experiments()
+    if experiments is None:
+        experiments = get_experiments()
 
     experiment_map = {
         experiment.id: experiment

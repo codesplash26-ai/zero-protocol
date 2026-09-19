@@ -29,7 +29,17 @@ from nodes.evaluate_candidates import (
 from nodes.optimize import (
     optimize_node,
 )
+from nodes.strategic_evaluation import (
+    strategic_evaluation_node,
+)
 
+from nodes.generate_recommendation import (
+    generate_recommendation_node,
+)
+
+from nodes.check_approval import (
+    check_approval_node,
+)
 
 def build_graph():
 
@@ -97,9 +107,38 @@ def build_graph():
         "optimize",
     )
 
-    workflow.add_edge(
-        "optimize",
-        END,
+    
+    workflow.add_node(
+    "strategic_evaluation",
+    strategic_evaluation_node,
     )
 
+    workflow.add_node(
+        "generate_recommendation",
+        generate_recommendation_node,
+    )
+
+    workflow.add_node(
+        "check_approval",
+        check_approval_node,
+    )
+    workflow.add_edge(
+    "optimize",
+    "strategic_evaluation",
+    )
+
+    workflow.add_edge(
+        "strategic_evaluation",
+        "generate_recommendation",
+    )
+
+    workflow.add_edge(
+        "generate_recommendation",
+        "check_approval",
+    )
+
+    workflow.add_edge(
+        "check_approval",
+        END,
+    )
     return workflow.compile()

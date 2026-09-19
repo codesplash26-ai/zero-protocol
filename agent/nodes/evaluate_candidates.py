@@ -1,5 +1,7 @@
 from schemas.models import (
     CandidateStrategy,
+    Experiment,
+    OrganizationState,
 )
 
 from tools.mock_backend import (
@@ -17,20 +19,32 @@ def evaluate_candidates_node(
     feasibility_results = []
     consequence_results = []
 
+    # Convert current LangGraph state
+    # into Pydantic models
+    organization_state = OrganizationState(
+        **state["organization_state"]
+    )
+
+    experiments = [
+        Experiment(**experiment)
+        for experiment in state["experiments"]
+    ]
+
+    # Evaluate every candidate strategy
     for strategy_data in (
         state["candidate_strategies"]
     ):
 
-        strategy = (
-            CandidateStrategy(
-                **strategy_data
-            )
+        strategy = CandidateStrategy(
+            **strategy_data
         )
 
-        feasibility = (
-            check_feasibility(
-                strategy
-            )
+        # Check feasibility using
+        # CURRENT LangGraph state
+        feasibility = check_feasibility(
+            strategy,
+            organization_state,
+            experiments,
         )
 
         feasibility_results.append(
@@ -38,14 +52,13 @@ def evaluate_candidates_node(
         )
 
         # Only calculate consequences
-        # for feasible candidates.
-
+        # for feasible strategies
         if feasibility.feasible:
 
-            consequences = (
-                calculate_consequences(
-                    strategy
-                )
+            consequences = calculate_consequences(
+                strategy,
+                organization_state,
+                experiments,
             )
 
             consequence_results.append(

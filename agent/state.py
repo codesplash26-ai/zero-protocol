@@ -22,6 +22,8 @@ class AgentState(TypedDict, total=False):
     # CP-SAT
     optimization_result: dict
 
+    strategic_evaluation: list[dict]
+
     # Later stages
     recommendation: dict
     approval: dict

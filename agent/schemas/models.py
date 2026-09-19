@@ -43,7 +43,7 @@ class OrganizationState(BaseModel):
     eligible_traffic: int
 
     approval_threshold_usd: int
-
+    state_version: int = 1
 
 class Experiment(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -130,17 +130,29 @@ class OptimizationResult(BaseModel):
 class Recommendation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    decision_id: str
+
     recommended_strategy_id: str
 
-    now: list[str] = Field(default_factory=list)
-    next: list[str] = Field(default_factory=list)
-    later: list[str] = Field(default_factory=list)
-    defer: list[str] = Field(default_factory=list)
+    now: list[str] = Field(
+        default_factory=list
+    )
+
+    next: list[str] = Field(
+        default_factory=list
+    )
+
+    later: list[str] = Field(
+        default_factory=list
+    )
+
+    defer: list[str] = Field(
+        default_factory=list
+    )
 
     reasoning_summary: str
 
     requires_approval: bool = False
-
 
 class Event(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -174,3 +186,59 @@ class EvidencePlan(BaseModel):
     sufficient_from_current_state: bool
 
     clarification_questions: list[str]
+
+class StrategyAssessment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: str
+
+    business_value: str
+    information_value: str
+    strategic_alignment: str
+    opportunity_cost: str
+    risk: str
+
+    rationale: str
+
+
+class StrategicEvaluationSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assessments: list[StrategyAssessment]
+
+class ApprovalDecision(str, Enum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class Approval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    decision_id: str
+    strategy_id: str
+
+    decision: ApprovalDecision
+
+    reason: str
+
+    threshold_usd: int
+
+    state_version: int = 1
+
+class MaterialityResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+
+    potentially_material: bool
+
+    affected_fields: list[str] = Field(
+        default_factory=list
+    )
+
+    reasons: list[str] = Field(
+        default_factory=list
+    )

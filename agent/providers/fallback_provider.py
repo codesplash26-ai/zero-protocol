@@ -1,18 +1,15 @@
 from providers.base import T
+
 from providers.groq_provider import (
     GroqProvider,
 )
+
 from providers.gemini_provider import (
     GeminiProvider,
 )
 
 
 class FallbackProvider:
-
-    def __init__(self):
-
-        self.primary = GroqProvider()
-        self.fallback = GeminiProvider()
 
     def generate_structured(
         self,
@@ -21,37 +18,58 @@ class FallbackProvider:
         schema: type[T],
     ) -> T:
 
+        errors = []
+
+        # -------------------------
+        # Primary provider: Groq
+        # -------------------------
+
         try:
 
-            return (
-                self.primary
-                .generate_structured(
-                    system_prompt,
-                    user_prompt,
-                    schema,
-                )
+            primary = GroqProvider()
+
+            return primary.generate_structured(
+                system_prompt,
+                user_prompt,
+                schema,
             )
 
-        except Exception as primary_error:
+        except Exception as error:
+
+            errors.append(
+                f"Groq: {error}"
+            )
 
             print(
                 "Groq failed. "
-                "Trying Gemini fallback..."
+                "Trying Gemini..."
             )
 
-            try:
+        # -------------------------
+        # Fallback provider: Gemini
+        # -------------------------
 
-                return (
-                    self.fallback
-                    .generate_structured(
-                        system_prompt,
-                        user_prompt,
-                        schema,
-                    )
-                )
+        try:
 
-            except Exception as fallback_error:
+            fallback = GeminiProvider()
 
-                raise RuntimeError(
-                    "Both LLM providers failed."
-                ) from fallback_error
+            return fallback.generate_structured(
+                system_prompt,
+                user_prompt,
+                schema,
+            )
+
+        except Exception as error:
+
+            errors.append(
+                f"Gemini: {error}"
+            )
+
+        # -------------------------
+        # Both failed
+        # -------------------------
+
+        raise RuntimeError(
+            "All LLM providers failed. "
+            + " | ".join(errors)
+        )

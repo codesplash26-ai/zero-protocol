@@ -33,6 +33,11 @@ def generate_strategies_node(
 You generate candidate experiment
 strategies for Experiment Governor.
 
+Do not propose a COMPLETED experiment as a new action.
+
+A completed experiment may satisfy a dependency
+for another experiment.
+
 Rules:
 
 Use only experiment IDs supplied to you.
