@@ -91,20 +91,30 @@ def find_feasible_combinations(
     # Dependency constraints
     # -----------------------------
 
-    experiment_ids = set(selection.keys())
+    experiment_map = {
+        experiment.id: experiment
+        for experiment in experiments
+    }
 
     for experiment in experiments:
 
-        for dependency in experiment.dependencies:
+        for dependency_id in experiment.dependencies:
 
-            if dependency not in experiment_ids:
+            dependency = experiment_map.get(dependency_id)
+
+            if dependency is None:
                 raise ValueError(
-                    f"Unknown dependency: {dependency}"
+                    f"Unknown dependency: {dependency_id}"
                 )
+
+            # If dependency already completed,
+            # we do not need to select it again.
+            if dependency.status.value == "COMPLETED":
+                continue
 
             model.Add(
                 selection[experiment.id]
-                <= selection[dependency]
+                <= selection[dependency_id]
             )
 
     # -----------------------------
@@ -121,7 +131,9 @@ def find_feasible_combinations(
                     f"Unknown experiment: {experiment_id}"
                 )
 
-            model.Add(selection[experiment_id] == 1)
+            model.Add(
+                selection[experiment_id] == 1
+            )
 
     # -----------------------------
     # Solve
@@ -134,11 +146,16 @@ def find_feasible_combinations(
 
     collector = CombinationCollector(selection)
 
-    status = solver.Solve(model, collector)
+    status = solver.Solve(
+        model,
+        collector,
+    )
 
     status_name = solver.StatusName(status)
 
-    solver_status = SolverStatus(status_name)
+    solver_status = SolverStatus(
+        status_name
+    )
 
     combinations = sorted(
         collector.combinations,

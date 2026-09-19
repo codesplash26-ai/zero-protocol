@@ -1,122 +1,76 @@
-from schemas.models import CandidateStrategy
-
-from tools.mock_backend import (
-    get_goal,
-    get_current_state,
-    get_experiments,
-    check_feasibility,
-    calculate_consequences,
-)
-
-from optimizer.cp_sat_optimizer import (
-    find_feasible_combinations,
-)
+from pathlib import Path
+from dotenv import load_dotenv
 
 
-print("\n=== EXPERIMENT GOVERNOR ===\n")
+env_path = Path(__file__).resolve().parent.parent / ".env"
+
+load_dotenv(env_path)
 
 
-goal = get_goal()
 
-print("Founder Goal:")
-print(goal.text)
+from graph import build_graph
 
 
-state = get_current_state()
+graph = build_graph()
 
-print("\nOrganization:")
-print(state.organization_name)
+result = graph.invoke({})
+
 
 print(
-    "Available Engineering:",
-    state.available_engineering_hours,
+    "\n=== EXPERIMENT GOVERNOR ==="
 )
 
 
-experiments = get_experiments()
-
-print("\nExperiments:")
-
-for experiment in experiments:
-
-    print(
-        experiment.id,
-        "-",
-        experiment.name,
-    )
-
-
-print("\nRunning CP-SAT...\n")
-
-optimization = find_feasible_combinations(
-    state=state,
-    experiments=experiments,
-)
+print("\n1. Goal")
 
 print(
-    "Solver Status:",
-    optimization.status,
-)
-
-print("\nFeasible combinations:")
-
-for combination in optimization.feasible_combinations:
-
-    if combination:
-
-        print(combination)
-
-    else:
-
-        print(["DO_NOTHING"])
-
-
-print("\nTesting Strategy A...\n")
-
-strategy_a = CandidateStrategy(
-    id="STRATEGY-A",
-    experiment_ids=["A"],
-    sequence=["A"],
+    result["goal"]["text"]
 )
 
 
-feasibility = check_feasibility(
-    strategy_a
-)
+print("\n2. Decision Objective")
 
 print(
-    "Feasible:",
-    feasibility.feasible,
+    result["decision_objective"]
 )
+
+
+print("\n3. Evidence Plan")
 
 print(
-    "Violations:",
-    feasibility.violations,
+    result["evidence_plan"]
 )
 
 
-consequences = calculate_consequences(
-    strategy_a
-)
+print("\n4. Candidate Strategies")
 
-print("\nConsequences:")
+for strategy in (
+    result["candidate_strategies"]
+):
+
+    print(strategy)
+
+
+print("\n5. Feasibility")
+
+for result_item in (
+    result["feasibility_results"]
+):
+
+    print(result_item)
+
+
+print("\n6. Consequences")
+
+for result_item in (
+    result["consequence_results"]
+):
+
+    print(result_item)
+
+
+print("\n7. CP-SAT")
 
 print(
-    "Budget Used:",
-    consequences.budget_used_usd,
-)
-
-print(
-    "Remaining Budget:",
-    consequences.remaining_budget_usd,
-)
-
-print(
-    "Engineering Used:",
-    consequences.engineering_used_hours,
-)
-
-print(
-    "Remaining Engineering:",
-    consequences.remaining_engineering_hours,
+    result["optimization_result"]
 )

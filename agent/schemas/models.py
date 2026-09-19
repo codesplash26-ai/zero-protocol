@@ -82,6 +82,15 @@ class CandidateStrategy(BaseModel):
     conditional: bool = False
     condition: Optional[str] = None
 
+class CandidateStrategySet(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    strategies: list[
+        CandidateStrategy
+    ]
+
 
 class FeasibilityResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -141,3 +150,27 @@ class Event(BaseModel):
     description: str
 
     engineering_delta_hours: int = 0
+
+class DecisionObjective(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    objective: str
+
+    horizon_weeks: int
+
+    protected_commitments: list[str]
+
+    decision_type: str
+
+class EvidencePlan(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    required_evidence: list[str]
+
+    sufficient_from_current_state: bool
+
+    clarification_questions: list[str]
