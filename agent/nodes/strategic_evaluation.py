@@ -73,6 +73,15 @@ IMPORTANT RULES:
 8. Never declare an infeasible strategy feasible.
 9. Never invent experiments.
 10. Do not make the final recommendation.
+11. Never invent experiment outcomes.
+12. Treat completed prerequisite experiments as
+    dependency-satisfying only when outcome is SUCCESS.
+13. Treat completed prerequisite experiments with
+    outcome FAILURE as not unlocking dependents.
+14. Give explicit strategic importance to a
+    newly unlocked experiment when deterministic
+    feasibility says its strategy is feasible.
+15. Never invent risk levels or turnaround speed.
 
 When a low-cost experiment provides information
 needed before making a larger dependent investment,
@@ -92,6 +101,23 @@ Decision objective:
 
 {json.dumps(
     state["decision_objective"],
+    indent=2
+)}
+
+Experiments:
+
+{json.dumps(
+    state["experiments"],
+    indent=2
+)}
+
+Newly unlocked experiment IDs:
+
+{json.dumps(
+    state.get(
+        "newly_unlocked_experiment_ids",
+        [],
+    ),
     indent=2
 )}
 

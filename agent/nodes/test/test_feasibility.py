@@ -1,9 +1,13 @@
 from schemas.models import (
     CandidateStrategy,
+    ExperimentOutcome,
+    ExperimentStatus,
 )
 
 from tools.mock_backend import (
     check_feasibility,
+    get_current_state,
+    get_experiments,
 )
 
 
@@ -39,3 +43,72 @@ def test_a_b_is_not_initially_feasible():
     )
 
     assert result.feasible is False
+
+
+def test_successful_completed_a_unlocks_b():
+
+    state = get_current_state()
+    state.available_engineering_hours = 42
+
+    experiments = get_experiments()
+
+    for experiment in experiments:
+
+        if experiment.id == "A":
+            experiment.status = (
+                ExperimentStatus.COMPLETED
+            )
+            experiment.outcome = (
+                ExperimentOutcome.SUCCESS
+            )
+
+    strategy = CandidateStrategy(
+        id="TEST-B",
+        experiment_ids=["B"],
+        sequence=["B"],
+        conditional=False,
+        condition=None,
+    )
+
+    result = check_feasibility(
+        strategy,
+        state,
+        experiments,
+    )
+
+    assert result.feasible is True
+
+
+def test_failed_completed_a_does_not_unlock_b():
+
+    state = get_current_state()
+    state.available_engineering_hours = 42
+
+    experiments = get_experiments()
+
+    for experiment in experiments:
+
+        if experiment.id == "A":
+            experiment.status = (
+                ExperimentStatus.COMPLETED
+            )
+            experiment.outcome = (
+                ExperimentOutcome.FAILURE
+            )
+
+    strategy = CandidateStrategy(
+        id="TEST-B",
+        experiment_ids=["B"],
+        sequence=["B"],
+        conditional=False,
+        condition=None,
+    )
+
+    result = check_feasibility(
+        strategy,
+        state,
+        experiments,
+    )
+
+    assert result.feasible is False
+    assert "B requires A" in result.violations

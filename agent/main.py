@@ -1,6 +1,13 @@
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(
+        encoding="utf-8"
+    )
 
 
 # --------------------------------
@@ -65,6 +72,7 @@ for experiment in initial_result["experiments"]:
 
     if experiment["id"] == "A":
         experiment["status"] = "COMPLETED"
+        experiment["outcome"] = "SUCCESS"
 
     updated_experiments.append(
         experiment
@@ -121,6 +129,15 @@ print("\nMATERIALITY")
 print(
     replanned[
         "materiality_result"
+    ]
+)
+
+
+print("\nNEWLY UNLOCKED")
+
+print(
+    replanned[
+        "newly_unlocked_experiment_ids"
     ]
 )
 

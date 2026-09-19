@@ -12,6 +12,12 @@ class ExperimentStatus(str, Enum):
     REJECTED = "REJECTED"
 
 
+class ExperimentOutcome(str, Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+
+
 class SolverStatus(str, Enum):
     OPTIMAL = "OPTIMAL"
     FEASIBLE = "FEASIBLE"
@@ -58,8 +64,21 @@ class Experiment(BaseModel):
     dependencies: list[str] = Field(default_factory=list)
 
     status: ExperimentStatus = ExperimentStatus.PROPOSED
+    outcome: ExperimentOutcome = ExperimentOutcome.PENDING
 
     decision_role: Optional[str] = None
+
+
+def dependency_satisfied_by_completed_success(
+    experiment: Experiment | None,
+) -> bool:
+    return (
+        experiment is not None
+        and experiment.status
+        == ExperimentStatus.COMPLETED
+        and experiment.outcome
+        == ExperimentOutcome.SUCCESS
+    )
 
 
 class EvidenceItem(BaseModel):

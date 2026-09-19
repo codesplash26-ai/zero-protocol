@@ -9,6 +9,7 @@ from schemas.models import (
     FeasibilityResult,
     Goal,
     OrganizationState,
+    dependency_satisfied_by_completed_success,
 )
 
 
@@ -58,6 +59,46 @@ def get_experiments() -> list[Experiment]:
     ]
 
 
+def detect_newly_unlocked_experiment_ids(
+    experiments: list[Experiment],
+) -> list[str]:
+
+    experiment_map = {
+        experiment.id: experiment
+        for experiment in experiments
+    }
+
+    newly_unlocked = []
+
+    for experiment in experiments:
+
+        if (
+            experiment.status
+            == ExperimentStatus.COMPLETED
+        ):
+            continue
+
+        if not experiment.dependencies:
+            continue
+
+        dependencies_satisfied = all(
+            dependency_satisfied_by_completed_success(
+                experiment_map.get(
+                    dependency_id
+                )
+            )
+            for dependency_id
+            in experiment.dependencies
+        )
+
+        if dependencies_satisfied:
+            newly_unlocked.append(
+                experiment.id
+            )
+
+    return newly_unlocked
+
+
 def check_feasibility(
     strategy: CandidateStrategy,
     state: OrganizationState | None = None,
@@ -92,6 +133,17 @@ def check_feasibility(
         selected_experiments.append(
             experiment_map[experiment_id]
         )
+
+    for experiment in selected_experiments:
+
+        if (
+            experiment.status
+            == ExperimentStatus.COMPLETED
+        ):
+
+            violations.append(
+                f"{experiment.id} is already completed"
+            )
 
     # ---------------------------
     # Resource totals
@@ -154,13 +206,16 @@ def check_feasibility(
             )
 
             dependency_completed = (
-                dependency is not None
-                and dependency.status
-                == ExperimentStatus.COMPLETED
+                dependency_satisfied_by_completed_success(
+                    dependency
+                )
             )
 
             dependency_selected = (
                 dependency_id in selected_ids
+                and dependency is not None
+                and dependency.status
+                != ExperimentStatus.COMPLETED
             )
 
             if not (

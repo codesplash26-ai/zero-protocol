@@ -4,9 +4,11 @@ from ortools.sat.python import cp_model
 
 from schemas.models import (
     Experiment,
+    ExperimentStatus,
     OrganizationState,
     OptimizationResult,
     SolverStatus,
+    dependency_satisfied_by_completed_success,
 )
 
 
@@ -133,14 +135,28 @@ def find_feasible_combinations(
                     f"Unknown dependency: {dependency_id}"
                 )
 
-            # Dependency already completed.
+            # Dependency already completed successfully.
             # Example:
             #
-            # A = COMPLETED
+            # A = COMPLETED and SUCCESS
             # B depends on A
             #
             # B can now be selected without selecting A again.
-            if dependency.status.value == "COMPLETED":
+            if dependency_satisfied_by_completed_success(
+                dependency
+            ):
+                continue
+
+            # A completed dependency that did not succeed
+            # does not unlock its dependent experiment.
+            if (
+                dependency.status
+                == ExperimentStatus.COMPLETED
+            ):
+                model.Add(
+                    selection[experiment.id] == 0
+                )
+
                 continue
 
             # If dependency has not completed,

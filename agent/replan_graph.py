@@ -10,6 +10,10 @@ from nodes.handle_event import (
     handle_event_node,
 )
 
+from nodes.detect_newly_unlocked import (
+    detect_newly_unlocked_node,
+)
+
 from nodes.generate_strategies import (
     generate_strategies_node,
 )
@@ -65,6 +69,11 @@ def build_replan_graph():
     )
 
     workflow.add_node(
+        "detect_newly_unlocked",
+        detect_newly_unlocked_node,
+    )
+
+    workflow.add_node(
         "generate_strategies",
         generate_strategies_node,
     )
@@ -104,11 +113,16 @@ def build_replan_graph():
         materiality_router,
         {
             "replan":
-                "generate_strategies",
+                "detect_newly_unlocked",
 
             "continue":
                 END,
         },
+    )
+
+    workflow.add_edge(
+        "detect_newly_unlocked",
+        "generate_strategies",
     )
 
     workflow.add_edge(

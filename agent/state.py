@@ -29,6 +29,7 @@ class AgentState(TypedDict, total=False):
     approval: dict
     event: dict
     materiality_result: dict
+    newly_unlocked_experiment_ids: list[str]
 
     # Debug / failure
     errors: list[str]
