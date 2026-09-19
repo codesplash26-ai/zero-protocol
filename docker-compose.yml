@@ -1,0 +1,9 @@
+services:
+  agent:
+    build:
+      context: ./agent
+    container_name: experiment-governor-agent
+    env_file:
+      - .env
+    volumes:
+      - ./agent:/app
