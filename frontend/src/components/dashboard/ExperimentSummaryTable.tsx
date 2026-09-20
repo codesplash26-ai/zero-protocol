@@ -2,26 +2,28 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { ExperimentSummaryItem } from '../../mock/pulseboard';
+import type { Experiment, ExperimentStatus } from '../../mock/pulseboard';
 import { FlaskConical, ArrowRight } from 'lucide-react';
 
 export interface ExperimentSummaryTableProps {
-  experiments: ExperimentSummaryItem[];
+  experiments: Experiment[];
 }
 
 export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ experiments }) => {
   const navigate = useNavigate();
 
-  const getStatusBadge = (status: ExperimentSummaryItem['status']) => {
+  const getStatusBadge = (status: ExperimentStatus) => {
     switch (status) {
-      case 'Proposed':
+      case 'PROPOSED':
         return <Badge variant="default">Proposed</Badge>;
-      case 'Conditional':
-        return <Badge variant="teal">Conditional</Badge>;
-      case 'Active':
-        return <Badge variant="info">Active</Badge>;
-      case 'Completed':
+      case 'APPROVED':
+        return <Badge variant="teal">Approved</Badge>;
+      case 'RUNNING':
+        return <Badge variant="info">Running</Badge>;
+      case 'COMPLETED':
         return <Badge variant="success">Completed</Badge>;
+      case 'REJECTED':
+        return <Badge variant="danger">Rejected</Badge>;
       default:
         return <Badge variant="default">{status}</Badge>;
     }
@@ -121,22 +123,22 @@ export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ 
                 }}
               >
                 <td style={{ padding: '0.875rem 1rem 0.875rem 0', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                  <div>{exp.name}</div>
-                  {exp.dependency && (
+                  <div>{exp.name} (ID: {exp.id})</div>
+                  {exp.dependencies && exp.dependencies.length > 0 && (
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 400, marginTop: '0.125rem' }}>
-                      Depends on: {exp.dependency}
+                      Depends on: {exp.dependencies.join(', ')}
                     </div>
                   )}
                 </td>
                 <td style={{ padding: '0.875rem 1rem' }}>{getStatusBadge(exp.status)}</td>
                 <td style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                  ${exp.cost.toLocaleString()}
+                  {exp.cost_usd !== null ? `$${exp.cost_usd.toLocaleString()}` : '—'}
                 </td>
                 <td style={{ padding: '0.875rem 1rem', color: 'var(--color-text-secondary)' }}>
-                  {exp.engineeringHours}h
+                  {exp.engineering_hours !== null ? `${exp.engineering_hours}h` : '—'}
                 </td>
                 <td style={{ padding: '0.875rem 0 0.875rem 1rem', textAlign: 'right', color: 'var(--color-text-secondary)' }}>
-                  {exp.trafficSessions.toLocaleString()} sessions
+                  {exp.traffic_required !== null ? `${exp.traffic_required.toLocaleString()} sessions` : '—'}
                 </td>
               </tr>
             ))}

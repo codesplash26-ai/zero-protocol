@@ -70,22 +70,24 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({ evidence }) => {
                     letterSpacing: '0.04em',
                   }}
                 >
-                  {item.source}
+                  {item.source} (ID: {item.id})
                 </span>
 
-                <Badge variant={item.confidence === 'High' ? 'teal' : 'default'} size="sm">
+                <Badge variant={item.quality === 'HIGH' ? 'teal' : 'default'} size="sm">
                   <ShieldCheck size={12} />
-                  <span>{item.confidence} Confidence</span>
+                  <span>Quality: {item.quality}</span>
                 </Badge>
               </div>
 
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: 1.4 }}>
-                "{item.insight}"
+                "{item.content}"
               </div>
 
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.375rem' }}>
-                <strong>Relevance:</strong> {item.relevance}
-              </div>
+              {item.relevance && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.375rem' }}>
+                  <strong>Relevance:</strong> {item.relevance}
+                </div>
+              )}
             </div>
           ))}
         </div>

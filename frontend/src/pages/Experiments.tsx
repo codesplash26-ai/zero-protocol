@@ -8,20 +8,20 @@ import { ExperimentDetailDrawer } from '../components/experiments/ExperimentDeta
 import { AddExperimentModal } from '../components/experiments/AddExperimentModal';
 import { ImportExperimentModal } from '../components/experiments/ImportExperimentModal';
 import { initialExperiments } from '../mock/experiments';
-import type { DetailedExperiment } from '../mock/experiments';
+import type { Experiment } from '../mock/pulseboard';
 import { Plus, UploadCloud } from 'lucide-react';
 
 export const Experiments: React.FC = () => {
-  const [experimentsList, setExperimentsList] = useState<DetailedExperiment[]>(initialExperiments);
-  const [selectedExperiment, setSelectedExperiment] = useState<DetailedExperiment | null>(null);
+  const [experimentsList, setExperimentsList] = useState<Experiment[]>(initialExperiments);
+  const [selectedExperiment, setSelectedExperiment] = useState<Experiment | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const handleAddExperiment = (newExp: DetailedExperiment) => {
+  const handleAddExperiment = (newExp: Experiment) => {
     setExperimentsList((prev) => [newExp, ...prev]);
   };
 
-  const handleConfirmImportedExperiment = (importedExp: DetailedExperiment) => {
+  const handleConfirmImportedExperiment = (importedExp: Experiment) => {
     setExperimentsList((prev) => [importedExp, ...prev]);
   };
 

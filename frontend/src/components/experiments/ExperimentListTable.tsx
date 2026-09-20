@@ -2,32 +2,35 @@ import React from 'react';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { DetailedExperiment, ExperimentStatus } from '../../mock/experiments';
+import type { Experiment } from '../../mock/pulseboard';
 import { FlaskConical, Eye, GitBranch } from 'lucide-react';
 
 export interface ExperimentListTableProps {
-  experiments: DetailedExperiment[];
-  onSelectExperiment: (exp: DetailedExperiment) => void;
+  experiments: Experiment[];
+  onSelectExperiment: (exp: Experiment) => void;
 }
 
 export const ExperimentListTable: React.FC<ExperimentListTableProps> = ({
   experiments,
   onSelectExperiment,
 }) => {
-  const getStatusBadge = (status: ExperimentStatus) => {
-    switch (status) {
-      case 'Proposed':
+  const getStatusBadge = (exp: Experiment) => {
+    if (exp.dependencies && exp.dependencies.length > 0) {
+      return <Badge variant="teal">Conditional</Badge>;
+    }
+    switch (exp.status) {
+      case 'PROPOSED':
         return <Badge variant="default">Proposed</Badge>;
-      case 'Conditional':
-        return <Badge variant="teal">Conditional</Badge>;
-      case 'Deferred':
-        return <Badge variant="warning">Deferred</Badge>;
-      case 'Running':
+      case 'APPROVED':
+        return <Badge variant="teal">Approved</Badge>;
+      case 'RUNNING':
         return <Badge variant="info">Running</Badge>;
-      case 'Completed':
+      case 'COMPLETED':
         return <Badge variant="success">Completed</Badge>;
+      case 'REJECTED':
+        return <Badge variant="danger">Rejected</Badge>;
       default:
-        return <Badge variant="default">{status}</Badge>;
+        return <Badge variant="default">{exp.status}</Badge>;
     }
   };
 
@@ -106,7 +109,7 @@ export const ExperimentListTable: React.FC<ExperimentListTableProps> = ({
                 }}
               >
                 <td style={{ padding: '1rem 1rem 1rem 0', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                  <div>{exp.name}</div>
+                  <div>{exp.name} (ID: {exp.id})</div>
                   <div
                     style={{
                       fontSize: '0.75rem',
@@ -116,9 +119,9 @@ export const ExperimentListTable: React.FC<ExperimentListTableProps> = ({
                       maxWidth: '280px',
                     }}
                   >
-                    {exp.shortDescription}
+                    {exp.short_description || exp.decision_role}
                   </div>
-                  {exp.dependencies.length > 0 && (
+                  {exp.dependencies && exp.dependencies.length > 0 && (
                     <div
                       style={{
                         display: 'flex',
@@ -136,22 +139,22 @@ export const ExperimentListTable: React.FC<ExperimentListTableProps> = ({
                   )}
                 </td>
 
-                <td style={{ padding: '1rem' }}>{getStatusBadge(exp.status)}</td>
+                <td style={{ padding: '1rem' }}>{getStatusBadge(exp)}</td>
 
                 <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                  {exp.cost !== null ? `$${exp.cost.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                  {exp.cost_usd !== null ? `$${exp.cost_usd.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
                 </td>
 
                 <td style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>
-                  {exp.engineeringHours !== null ? `${exp.engineeringHours}h` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                  {exp.engineering_hours !== null ? `${exp.engineering_hours}h` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
                 </td>
 
                 <td style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>
-                  {exp.trafficSessions !== null ? `${exp.trafficSessions.toLocaleString()} sessions` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                  {exp.traffic_required !== null ? `${exp.traffic_required.toLocaleString()} sessions` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
                 </td>
 
                 <td style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                  {exp.decisionUnlocked}
+                  {exp.decision_role}
                 </td>
 
                 <td style={{ padding: '1rem 0 1rem 1rem', textAlign: 'right' }}>

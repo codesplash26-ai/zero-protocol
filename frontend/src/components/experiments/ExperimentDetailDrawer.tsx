@@ -1,11 +1,11 @@
 import React from 'react';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
-import type { DetailedExperiment, ExperimentStatus } from '../../mock/experiments';
+import type { Experiment } from '../../mock/pulseboard';
 import { X, GitBranch, Target, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export interface ExperimentDetailDrawerProps {
-  experiment: DetailedExperiment | null;
+  experiment: Experiment | null;
   onClose: () => void;
 }
 
@@ -15,20 +15,23 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
 }) => {
   if (!experiment) return null;
 
-  const getStatusBadge = (status: ExperimentStatus) => {
-    switch (status) {
-      case 'Proposed':
+  const getStatusBadge = (exp: Experiment) => {
+    if (exp.dependencies && exp.dependencies.length > 0) {
+      return <Badge variant="teal">Conditional</Badge>;
+    }
+    switch (exp.status) {
+      case 'PROPOSED':
         return <Badge variant="default">Proposed</Badge>;
-      case 'Conditional':
-        return <Badge variant="teal">Conditional</Badge>;
-      case 'Deferred':
-        return <Badge variant="warning">Deferred</Badge>;
-      case 'Running':
+      case 'APPROVED':
+        return <Badge variant="teal">Approved</Badge>;
+      case 'RUNNING':
         return <Badge variant="info">Running</Badge>;
-      case 'Completed':
+      case 'COMPLETED':
         return <Badge variant="success">Completed</Badge>;
+      case 'REJECTED':
+        return <Badge variant="danger">Rejected</Badge>;
       default:
-        return <Badge variant="default">{status}</Badge>;
+        return <Badge variant="default">{exp.status}</Badge>;
     }
   };
 
@@ -77,7 +80,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
         >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-              {getStatusBadge(experiment.status)}
+              {getStatusBadge(experiment)}
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                 ID: {experiment.id}
               </span>
@@ -101,7 +104,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
         {/* Content */}
         <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Missing Fields Banner if any */}
-          {experiment.missingFields.length > 0 && (
+          {experiment.missing_fields && experiment.missing_fields.length > 0 && (
             <div
               style={{
                 padding: '0.75rem 1rem',
@@ -117,7 +120,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
             >
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
               <div>
-                <strong>Missing Information:</strong> {experiment.missingFields.join(', ')}
+                <strong>Missing Information:</strong> {experiment.missing_fields.join(', ')}
               </div>
             </div>
           )}
@@ -137,7 +140,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
               OBJECTIVE & DESCRIPTION
             </div>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-text-main)', lineHeight: 1.5 }}>
-              {experiment.objective || experiment.shortDescription || 'Not specified'}
+              {experiment.objective || experiment.short_description || 'Not specified'}
             </p>
           </div>
 
@@ -178,10 +181,10 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
               }}
             >
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                ESTIMATED COST
+                ESTIMATED COST (USD)
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.cost !== null ? `$${experiment.cost.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.cost_usd !== null ? `$${experiment.cost_usd.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
               </div>
             </div>
 
@@ -197,7 +200,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
                 ENGINEERING EFFORT
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.engineeringHours !== null ? `${experiment.engineeringHours}h` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.engineering_hours !== null ? `${experiment.engineering_hours}h` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
               </div>
             </div>
 
@@ -210,10 +213,10 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
               }}
             >
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                TRAFFIC REQUIREMENT
+                TRAFFIC REQUIRED
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.trafficSessions !== null ? `${experiment.trafficSessions.toLocaleString()} sessions` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.traffic_required !== null ? `${experiment.traffic_required.toLocaleString()} sessions` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
               </div>
             </div>
 
@@ -248,7 +251,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
             >
               DEPENDENCIES
             </div>
-            {experiment.dependencies.length > 0 ? (
+            {experiment.dependencies && experiment.dependencies.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 {experiment.dependencies.map((dep, idx) => (
                   <div
@@ -267,7 +270,7 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
                     }}
                   >
                     <GitBranch size={14} />
-                    <span>Prerequisite: {dep}</span>
+                    <span>Prerequisite Experiment ID: {dep}</span>
                   </div>
                 ))}
               </div>
@@ -295,29 +298,31 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
                 SUCCESS THRESHOLD
               </div>
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.successThreshold || <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.success_threshold || <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
               </div>
             </div>
 
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.625rem' }}>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Target size={12} style={{ color: 'var(--color-accent-blue)' }} />
-                <span>DECISION UNLOCKED</span>
+                <span>DECISION ROLE</span>
               </div>
               <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-accent-blue)', marginTop: '0.125rem' }}>
-                {experiment.decisionUnlocked}
+                {experiment.decision_role}
               </div>
             </div>
           </div>
 
           {/* Provenance */}
-          <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-              <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
-              <span>Source: {experiment.provenance.source}</span>
+          {experiment.provenance && (
+            <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
+                <span>Source: {experiment.provenance.source}</span>
+              </div>
+              <span>Quality: {experiment.provenance.quality}</span>
             </div>
-            <span>Confidence: {experiment.provenance.confidence}</span>
-          </div>
+          )}
         </div>
       </aside>
     </>

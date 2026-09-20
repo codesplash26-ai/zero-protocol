@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
-import type { DetailedExperiment } from '../../mock/experiments';
+import type { Experiment } from '../../mock/pulseboard';
 import { X, Plus, CheckCircle2 } from 'lucide-react';
 
 export interface AddExperimentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddExperiment: (exp: DetailedExperiment) => void;
+  onAddExperiment: (exp: Experiment) => void;
 }
 
 export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
@@ -19,13 +19,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [hypothesis, setHypothesis] = useState('');
-  const [cost, setCost] = useState('');
+  const [costUsd, setCostUsd] = useState('');
   const [engineeringHours, setEngineeringHours] = useState('');
-  const [trafficSessions, setTrafficSessions] = useState('');
+  const [trafficRequired, setTrafficRequired] = useState('');
   const [duration, setDuration] = useState('');
   const [dependencies, setDependencies] = useState('');
   const [successThreshold, setSuccessThreshold] = useState('');
-  const [decisionUnlocked, setDecisionUnlocked] = useState('');
+  const [decisionRole, setDecisionRole] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   if (!isOpen) return null;
@@ -34,25 +34,25 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
-    const newExp: DetailedExperiment = {
-      id: `exp-${Date.now()}`,
+    const newExp: Experiment = {
+      id: `EXP-00${Math.floor(Math.random() * 900) + 100}`,
       name: name.trim(),
-      shortDescription: description.trim() || 'Manual founder experiment entry.',
+      short_description: description.trim() || 'Manual founder experiment entry.',
       objective: description.trim() || 'Manual entry objective.',
       hypothesis: hypothesis.trim() || 'Not specified',
-      status: 'Proposed',
-      cost: cost ? parseFloat(cost) : null,
-      engineeringHours: engineeringHours ? parseFloat(engineeringHours) : null,
-      trafficSessions: trafficSessions ? parseInt(trafficSessions, 10) : null,
+      status: 'PROPOSED',
+      cost_usd: costUsd ? parseFloat(costUsd) : null,
+      engineering_hours: engineeringHours ? parseFloat(engineeringHours) : null,
+      traffic_required: trafficRequired ? parseInt(trafficRequired, 10) : null,
       duration: duration.trim() || null,
       dependencies: dependencies ? dependencies.split(',').map((d) => d.trim()).filter(Boolean) : [],
-      successThreshold: successThreshold.trim() || null,
-      decisionUnlocked: decisionUnlocked.trim() || 'General growth validation',
+      success_threshold: successThreshold.trim() || null,
+      decision_role: decisionRole.trim() || 'General growth validation',
       provenance: {
         source: 'Manual Founder Input',
-        confidence: 'High',
+        quality: 'HIGH',
       },
-      missingFields: [],
+      missing_fields: [],
     };
 
     onAddExperiment(newExp);
@@ -186,7 +186,7 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Offering annual billing will convert 15% of checkout traffic..."
+                  placeholder="e.g. Offering annual billing upfront will convert 15% of checkout traffic..."
                   value={hypothesis}
                   onChange={(e) => setHypothesis(e.target.value)}
                   style={inputStyle}
@@ -196,13 +196,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Cost ($)
+                    Cost (USD)
                   </label>
                   <input
                     type="number"
                     placeholder="2500"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
+                    value={costUsd}
+                    onChange={(e) => setCostUsd(e.target.value)}
                     style={inputStyle}
                   />
                 </div>
@@ -220,13 +220,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Traffic (Sessions)
+                    Traffic Required
                   </label>
                   <input
                     type="number"
                     placeholder="3500"
-                    value={trafficSessions}
-                    onChange={(e) => setTrafficSessions(e.target.value)}
+                    value={trafficRequired}
+                    onChange={(e) => setTrafficRequired(e.target.value)}
                     style={inputStyle}
                   />
                 </div>
@@ -247,11 +247,11 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Dependencies (comma separated)
+                    Dependencies (IDs, e.g. A, B)
                   </label>
                   <input
                     type="text"
-                    placeholder="Pricing Willingness Test"
+                    placeholder="A"
                     value={dependencies}
                     onChange={(e) => setDependencies(e.target.value)}
                     style={inputStyle}
@@ -274,13 +274,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Decision Unlocked
+                    Decision Role
                   </label>
                   <input
                     type="text"
                     placeholder="e.g. Monetization model"
-                    value={decisionUnlocked}
-                    onChange={(e) => setDecisionUnlocked(e.target.value)}
+                    value={decisionRole}
+                    onChange={(e) => setDecisionRole(e.target.value)}
                     style={inputStyle}
                   />
                 </div>

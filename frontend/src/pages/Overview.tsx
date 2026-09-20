@@ -13,12 +13,13 @@ import { DollarSign, Cpu, Users, Lock } from 'lucide-react';
 
 export const Overview: React.FC = () => {
   const {
-    startupSnapshot,
-    currentDecision,
-    governorStatus,
+    organization_state,
+    goal,
+    governor_status,
     experiments,
     commitments,
-    recentActivity,
+    recent_activity,
+    decision_workspace,
   } = pulseboardMockData;
 
   return (
@@ -27,7 +28,7 @@ export const Overview: React.FC = () => {
       <PageHeader
         title="Overview"
         description="Your startup's current decision state and operating context."
-        badge={<Badge variant="default">PulseBoard Workspace</Badge>}
+        badge={<Badge variant="default">{organization_state.organization_name} Workspace</Badge>}
       />
 
       {/* 2. STARTUP SNAPSHOT (4 Metric Cards) */}
@@ -41,8 +42,8 @@ export const Overview: React.FC = () => {
         >
           <MetricCard
             label="EXPERIMENT BUDGET"
-            primaryValue={`${startupSnapshot.budget.currency}${startupSnapshot.budget.available.toLocaleString()}`}
-            secondaryValue={`Total Budget: ${startupSnapshot.budget.currency}${startupSnapshot.budget.total.toLocaleString()}`}
+            primaryValue={`$${organization_state.available_engineering_hours ? organization_state.budget_usd.toLocaleString() : organization_state.budget_usd.toLocaleString()}`}
+            secondaryValue={`Total Budget: $${organization_state.budget_usd.toLocaleString()}`}
             icon={<DollarSign size={20} />}
             iconBgColor="var(--color-accent-blue-light)"
             iconColor="var(--color-accent-blue)"
@@ -50,8 +51,8 @@ export const Overview: React.FC = () => {
 
           <MetricCard
             label="ENGINEERING CAPACITY"
-            primaryValue={`${startupSnapshot.engineering.total}h`}
-            secondaryValue={`Committed: ${startupSnapshot.engineering.committed}h | Available: ${startupSnapshot.engineering.available}h`}
+            primaryValue={`${organization_state.engineering_capacity_hours}h`}
+            secondaryValue={`Committed: ${organization_state.reserved_engineering_hours}h | Available: ${organization_state.available_engineering_hours}h`}
             icon={<Cpu size={20} />}
             iconBgColor="var(--color-governor-teal-light)"
             iconColor="var(--color-governor-teal)"
@@ -59,7 +60,7 @@ export const Overview: React.FC = () => {
 
           <MetricCard
             label="ELIGIBLE TRAFFIC"
-            primaryValue={`${startupSnapshot.traffic.eligibleSessions.toLocaleString()}`}
+            primaryValue={`${organization_state.eligible_traffic.toLocaleString()}`}
             secondaryValue="Monthly eligible user sessions"
             icon={<Users size={20} />}
             iconBgColor="var(--color-accent-blue-light)"
@@ -68,8 +69,8 @@ export const Overview: React.FC = () => {
 
           <MetricCard
             label="ACTIVE COMMITMENTS"
-            primaryValue={`${startupSnapshot.commitments.criticalCount} Critical`}
-            secondaryValue={`Primary: ${startupSnapshot.commitments.primaryName}`}
+            primaryValue="1 Critical"
+            secondaryValue={`Primary: ${commitments[0]?.name || 'Enterprise SSO'}`}
             icon={<Lock size={20} />}
             iconBgColor="var(--color-warning-bg)"
             iconColor="var(--color-warning)"
@@ -88,10 +89,13 @@ export const Overview: React.FC = () => {
           }}
         >
           <div style={{ flex: 2 }}>
-            <DecisionSummaryCard decision={currentDecision} />
+            <DecisionSummaryCard
+              goal={goal}
+              recommendationState={decision_workspace.recommendation.recommended_strategy_id || 'STRATEGY-A-B'}
+            />
           </div>
           <div style={{ flex: 1 }}>
-            <GovernorStatusCard status={governorStatus} />
+            <GovernorStatusCard status={governor_status} />
           </div>
         </div>
       </Section>
@@ -104,16 +108,14 @@ export const Overview: React.FC = () => {
       {/* 5. COMMITMENT & RESOURCE PRESSURE */}
       <Section>
         <ResourceAllocationSection
-          totalEngineeringHours={startupSnapshot.engineering.total}
-          committedHours={startupSnapshot.engineering.committed}
-          availableHours={startupSnapshot.engineering.available}
+          organizationState={organization_state}
           commitments={commitments}
         />
       </Section>
 
       {/* 6. RECENT ACTIVITY */}
       <Section>
-        <ActivityTimeline activities={recentActivity} />
+        <ActivityTimeline activities={recent_activity} />
       </Section>
     </div>
   );

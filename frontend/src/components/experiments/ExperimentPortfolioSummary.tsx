@@ -1,19 +1,19 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import type { DetailedExperiment } from '../../mock/experiments';
+import type { Experiment } from '../../mock/pulseboard';
 import { FlaskConical, FileText, GitBranch, PlayCircle } from 'lucide-react';
 
 export interface ExperimentPortfolioSummaryProps {
-  experiments: DetailedExperiment[];
+  experiments: Experiment[];
 }
 
 export const ExperimentPortfolioSummary: React.FC<ExperimentPortfolioSummaryProps> = ({
   experiments,
 }) => {
   const total = experiments.length;
-  const proposed = experiments.filter((e) => e.status === 'Proposed').length;
-  const conditional = experiments.filter((e) => e.status === 'Conditional').length;
-  const running = experiments.filter((e) => e.status === 'Running').length;
+  const proposed = experiments.filter((e) => e.status === 'PROPOSED').length;
+  const conditional = experiments.filter((e) => e.dependencies && e.dependencies.length > 0).length;
+  const running = experiments.filter((e) => e.status === 'RUNNING').length;
 
   return (
     <div
@@ -147,7 +147,7 @@ export const ExperimentPortfolioSummary: React.FC<ExperimentPortfolioSummaryProp
                 letterSpacing: '0.06em',
               }}
             >
-              CONDITIONAL
+              CONDITIONAL / GATED
             </div>
             <div
               style={{

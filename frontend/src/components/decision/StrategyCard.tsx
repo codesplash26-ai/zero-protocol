@@ -1,11 +1,11 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { StrategyOption } from '../../mock/pulseboard';
+import type { CandidateStrategy } from '../../mock/pulseboard';
 import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, DollarSign, Cpu, TrendingUp } from 'lucide-react';
 
 export interface StrategyCardProps {
-  strategy: StrategyOption;
+  strategy: CandidateStrategy;
   isSelected?: boolean;
   onSelect?: () => void;
 }
@@ -15,7 +15,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
   isSelected = false,
   onSelect,
 }) => {
-  const getStatusBadge = (status: StrategyOption['status']) => {
+  const getStatusBadge = (status: CandidateStrategy['status']) => {
     switch (status) {
       case 'Recommended':
         return (
@@ -67,7 +67,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <CardTitle style={{ fontSize: '1.0625rem' }}>{strategy.title}</CardTitle>
+              <CardTitle style={{ fontSize: '1.0625rem' }}>{strategy.title} (ID: {strategy.id})</CardTitle>
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
               {strategy.subtitle}
@@ -99,7 +99,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               marginBottom: '0.375rem',
             }}
           >
-            EXECUTION SEQUENCE
+            EXECUTION SEQUENCE (EXPERIMENTS: {strategy.experiment_ids.join(', ')})
           </div>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             {strategy.sequence.map((step, idx) => (
@@ -147,7 +147,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               <span>EXPECTED IMPACT</span>
             </div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-              {strategy.expectedImpact}
+              {strategy.expected_impact}
             </div>
           </div>
 
@@ -164,7 +164,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               <span>ENG HOURS</span>
             </div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: isInfeasible ? 'var(--color-danger)' : 'var(--color-text-main)', marginTop: '0.125rem' }}>
-              {strategy.engineeringHours}h
+              {strategy.engineering_hours}h
             </div>
           </div>
 
@@ -181,7 +181,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               <span>EST. COST</span>
             </div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-              ${strategy.cost.toLocaleString()}
+              ${strategy.cost_usd.toLocaleString()}
             </div>
           </div>
         </div>
@@ -189,11 +189,11 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
         {/* Advantage & Tradeoff Notes */}
         <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
           <div style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>
-            Key Advantage: <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>{strategy.keyAdvantage}</span>
+            Key Advantage: <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>{strategy.key_advantage}</span>
           </div>
-          {strategy.tradeoffNote && (
+          {strategy.tradeoff_note && (
             <div style={{ marginTop: '0.25rem', color: isInfeasible ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
-              <strong>Note:</strong> {strategy.tradeoffNote}
+              <strong>Note:</strong> {strategy.tradeoff_note}
             </div>
           )}
         </div>

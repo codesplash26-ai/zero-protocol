@@ -1,24 +1,26 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { CommitmentItem } from '../../mock/pulseboard';
+import type { CommitmentItem, OrganizationState } from '../../mock/pulseboard';
 import { Cpu, ShieldAlert, Lock, CheckCircle2 } from 'lucide-react';
 
 export interface ResourceAllocationSectionProps {
-  totalEngineeringHours: number;
-  committedHours: number;
-  availableHours: number;
+  organizationState: OrganizationState;
   commitments: CommitmentItem[];
 }
 
 export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps> = ({
-  totalEngineeringHours,
-  committedHours,
-  availableHours,
+  organizationState,
   commitments,
 }) => {
-  const committedPercentage = Math.round((committedHours / totalEngineeringHours) * 100);
-  const availablePercentage = Math.round((availableHours / totalEngineeringHours) * 100);
+  const {
+    engineering_capacity_hours,
+    reserved_engineering_hours,
+    available_engineering_hours,
+  } = organizationState;
+
+  const committedPercentage = Math.round((reserved_engineering_hours / engineering_capacity_hours) * 100);
+  const availablePercentage = Math.round((available_engineering_hours / engineering_capacity_hours) * 100);
 
   return (
     <div
@@ -64,7 +66,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
             </div>
           </div>
 
-          <Badge variant="default">{totalEngineeringHours}h Total</Badge>
+          <Badge variant="default">{engineering_capacity_hours}h Total</Badge>
         </CardHeader>
 
         <CardContent style={{ marginTop: '0.75rem' }}>
@@ -86,7 +88,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 backgroundColor: 'var(--color-primary)',
                 transition: 'width 0.3s ease',
               }}
-              title={`Enterprise SSO Committed: ${committedHours}h (${committedPercentage}%)`}
+              title={`Enterprise SSO Committed: ${reserved_engineering_hours}h (${committedPercentage}%)`}
             />
             <div
               style={{
@@ -94,7 +96,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 backgroundColor: 'var(--color-governor-teal)',
                 transition: 'width 0.3s ease',
               }}
-              title={`Experiment Capacity Available: ${availableHours}h (${availablePercentage}%)`}
+              title={`Experiment Capacity Available: ${available_engineering_hours}h (${availablePercentage}%)`}
             />
           </div>
 
@@ -121,7 +123,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 <span>COMMITTED (SSO)</span>
               </div>
               <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.25rem' }}>
-                {committedHours}h
+                {reserved_engineering_hours}h
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 400, marginLeft: '0.375rem' }}>
                   ({committedPercentage}%)
                 </span>
@@ -141,7 +143,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 <span>EXPERIMENT CAP</span>
               </div>
               <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-governor-teal)', marginTop: '0.25rem' }}>
-                {availableHours}h
+                {available_engineering_hours}h
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 400, marginLeft: '0.375rem' }}>
                   ({availablePercentage}%)
                 </span>
@@ -208,7 +210,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 Committed Allocation:
               </span>
               <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
-                {commitments[0]?.hoursCommitted || 36}h
+                {commitments[0]?.hours_committed || 36}h
               </span>
             </div>
           </div>

@@ -10,10 +10,12 @@ import { pulseboardMockData } from '../mock/pulseboard';
 import { Target, Calendar, Lock } from 'lucide-react';
 
 export const Decision: React.FC = () => {
-  const { decisionWorkspace } = pulseboardMockData;
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('strat-a');
+  const { decision_workspace } = pulseboardMockData;
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('STRATEGY-A-B');
 
-  const selectedStrategy = decisionWorkspace.strategies.find((s) => s.id === selectedStrategyId) || decisionWorkspace.strategies[0];
+  const selectedStrategy =
+    decision_workspace.strategies.find((s) => s.id === selectedStrategyId) ||
+    decision_workspace.strategies[0];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -53,7 +55,7 @@ export const Decision: React.FC = () => {
                     letterSpacing: '0.06em',
                   }}
                 >
-                  FOUNDER GOAL
+                  FOUNDER GOAL (ID: {decision_workspace.goal.id})
                 </div>
                 <CardTitle style={{ fontSize: '1.0625rem', marginTop: '0.125rem' }}>
                   Strategic Decision Target
@@ -64,11 +66,11 @@ export const Decision: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Badge variant="info">
                 <Calendar size={12} />
-                <span>Horizon: {decisionWorkspace.horizon}</span>
+                <span>Horizon: {decision_workspace.goal.horizon_weeks} weeks</span>
               </Badge>
               <Badge variant="danger">
                 <Lock size={12} />
-                <span>Shield: Enterprise SSO</span>
+                <span>Shield: {decision_workspace.goal.protected_commitments.join(', ')}</span>
               </Badge>
             </div>
           </CardHeader>
@@ -82,7 +84,7 @@ export const Decision: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              "{decisionWorkspace.goal}"
+              "{decision_workspace.goal.text}"
             </div>
             <div
               style={{
@@ -91,7 +93,7 @@ export const Decision: React.FC = () => {
                 marginTop: '0.5rem',
               }}
             >
-              <strong>Primary Constraint:</strong> {decisionWorkspace.primaryConstraint}
+              <strong>Primary Constraint:</strong> {decision_workspace.primary_constraint}
             </div>
           </CardContent>
         </Card>
@@ -101,14 +103,14 @@ export const Decision: React.FC = () => {
       <Section>
         <RecommendationBanner
           recommendedTitle={selectedStrategy.title}
-          reasoning={decisionWorkspace.recommendationReasoning}
+          reasoning={decision_workspace.recommendation.reasoning_summary}
         />
       </Section>
 
       {/* 4. CANDIDATE STRATEGIES COMPARISON */}
       <Section title="Candidate Strategies" description="Compare evaluated strategy paths under capacity, budget, and commitment constraints.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {decisionWorkspace.strategies.map((strat) => (
+          {decision_workspace.strategies.map((strat) => (
             <StrategyCard
               key={strat.id}
               strategy={strat}
@@ -121,7 +123,7 @@ export const Decision: React.FC = () => {
 
       {/* 5. EVIDENCE & CONSTRAINTS */}
       <Section title="Supporting Evidence" description="Empirical signals and customer feedback validating strategy rankings.">
-        <EvidencePanel evidence={decisionWorkspace.evidence} />
+        <EvidencePanel evidence={decision_workspace.evidence} />
       </Section>
     </div>
   );

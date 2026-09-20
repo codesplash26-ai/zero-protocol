@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import type { CurrentDecisionState } from '../../mock/pulseboard';
+import type { Goal } from '../../mock/pulseboard';
 import { Target, ArrowRight, Calendar, GitPullRequest } from 'lucide-react';
 
 export interface DecisionSummaryCardProps {
-  decision: CurrentDecisionState;
+  goal: Goal;
+  recommendationState: string;
 }
 
-export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ decision }) => {
+export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, recommendationState }) => {
   const navigate = useNavigate();
 
   return (
@@ -50,7 +51,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ decisi
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Badge variant="info">
             <Calendar size={12} />
-            <span>Horizon: {decision.horizon}</span>
+            <span>Horizon: {goal.horizon_weeks} weeks</span>
           </Badge>
         </div>
       </CardHeader>
@@ -76,7 +77,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ decisi
               marginBottom: '0.25rem',
             }}
           >
-            Goal Statement
+            Goal Statement (ID: {goal.id})
           </div>
           <div
             style={{
@@ -86,7 +87,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ decisi
               lineHeight: 1.5,
             }}
           >
-            "{decision.goal}"
+            "{goal.text}"
           </div>
         </div>
 
@@ -124,7 +125,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ decisi
                 marginTop: '0.125rem',
               }}
             >
-              {decision.recommendationState}
+              {recommendationState}
             </div>
           </div>
 

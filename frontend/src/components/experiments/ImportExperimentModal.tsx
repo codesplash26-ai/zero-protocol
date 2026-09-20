@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
 import { mockInterpretedExperiment } from '../../mock/experiments';
-import type { DetailedExperiment } from '../../mock/experiments';
+import type { Experiment } from '../../mock/pulseboard';
 import {
   X,
   UploadCloud,
@@ -21,7 +21,7 @@ import {
 export interface ImportExperimentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmImportedExperiment: (exp: DetailedExperiment) => void;
+  onConfirmImportedExperiment: (exp: Experiment) => void;
 }
 
 type ImportStep = 'intake' | 'interpreting' | 'review' | 'confirmed';
@@ -46,12 +46,12 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
   };
 
   const handleConfirm = () => {
-    const expToConfirm: DetailedExperiment = {
+    const expToConfirm: Experiment = {
       ...mockInterpretedExperiment,
-      id: `exp-imported-${Date.now()}`,
+      id: `EXP-00${Math.floor(Math.random() * 900) + 100}`,
       provenance: {
         source: selectedFile ? `Document (${selectedFile})` : 'Pasted Founder Notes',
-        confidence: 'High',
+        quality: 'HIGH',
       },
     };
     onConfirmImportedExperiment(expToConfirm);
@@ -308,7 +308,7 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
                   {mockInterpretedExperiment.name}
                 </div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
-                  {mockInterpretedExperiment.shortDescription}
+                  {mockInterpretedExperiment.short_description}
                 </div>
               </div>
 
@@ -343,7 +343,7 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
                     ENG HOURS
                   </div>
                   <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
-                    {mockInterpretedExperiment.engineeringHours}h
+                    {mockInterpretedExperiment.engineering_hours}h
                   </div>
                   <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
                     Source: Experiment Plan
@@ -362,7 +362,7 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
                     TRAFFIC
                   </div>
                   <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
-                    {mockInterpretedExperiment.trafficSessions?.toLocaleString()} sessions
+                    {mockInterpretedExperiment.traffic_required?.toLocaleString()} sessions
                   </div>
                   <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
                     Source: Experiment Plan
@@ -390,7 +390,7 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
               </div>
 
               {/* Missing Information Warning */}
-              {mockInterpretedExperiment.missingFields.length > 0 && (
+              {mockInterpretedExperiment.missing_fields && mockInterpretedExperiment.missing_fields.length > 0 && (
                 <div
                   style={{
                     padding: '0.75rem 1rem',
@@ -406,31 +406,33 @@ export const ImportExperimentModal: React.FC<ImportExperimentModalProps> = ({
                 >
                   <AlertTriangle size={18} style={{ flexShrink: 0 }} />
                   <div>
-                    <strong>⚠ Missing Information:</strong> {mockInterpretedExperiment.missingFields.join(', ')} (Will default to $0 or require manual edit).
+                    <strong>⚠ Missing Information:</strong> {mockInterpretedExperiment.missing_fields.join(', ')} (Will default to $0 or require manual edit).
                   </div>
                 </div>
               )}
 
               {/* Provenance & Confidence footer */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingTop: '0.5rem',
-                  fontSize: '0.75rem',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  <FileText size={14} style={{ color: 'var(--color-accent-blue)' }} />
-                  <span>Provenance: {mockInterpretedExperiment.provenance.source}</span>
+              {mockInterpretedExperiment.provenance && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <FileText size={14} style={{ color: 'var(--color-accent-blue)' }} />
+                    <span>Provenance: {mockInterpretedExperiment.provenance.source}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
+                    <span>Extraction Quality: {mockInterpretedExperiment.provenance.quality}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
-                  <span>Extraction Confidence: {mockInterpretedExperiment.provenance.confidence}</span>
-                </div>
-              </div>
+              )}
 
               {/* Review Actions */}
               <div

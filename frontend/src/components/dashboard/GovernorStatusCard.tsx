@@ -90,7 +90,7 @@ export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }
             <span>DECISION CYCLE</span>
           </div>
           <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-            {status.decisionCycle}
+            {status.decision_cycle}
           </div>
         </div>
 
@@ -108,7 +108,7 @@ export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }
             <Clock size={13} style={{ color: 'var(--color-text-muted)' }} />
             <span>Last Activity:</span>
           </div>
-          <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{status.lastActivity}</span>
+          <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{status.last_activity}</span>
         </div>
       </CardContent>
     </Card>
