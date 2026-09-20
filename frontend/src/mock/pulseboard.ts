@@ -173,6 +173,26 @@ export interface MaterialityResult {
   reasons: string[];
 }
 
+export type OptimizationStatus = 'OPTIMAL' | 'FEASIBLE' | 'INFEASIBLE' | 'UNKNOWN';
+
+export interface AuditRecord {
+  id: string; // "AUD-001"
+  decision_id: string; // "DEC-001"
+  goal_id: string; // "GOAL-001"
+  state_version: number;
+  tool_calls: string[];
+  candidate_strategy_ids: string[];
+  optimization_status: OptimizationStatus;
+  recommended_strategy_id: string;
+  approval_id: string | null;
+  action_receipt_id: string | null;
+  event_ids: string[];
+  // Presentation metadata
+  timestamp?: string;
+  title?: string;
+  summary?: string;
+}
+
 export interface PulseBoardData {
   organization_state: OrganizationState;
   goal: Goal;
@@ -185,6 +205,7 @@ export interface PulseBoardData {
   action_receipts: ActionReceipt[];
   events: Event[];
   materiality_results: MaterialityResult[];
+  audit_records: AuditRecord[];
 }
 
 export const pulseboardMockData: PulseBoardData = {
@@ -498,6 +519,56 @@ export const pulseboardMockData: PulseBoardData = {
       potentially_material: false,
       affected_fields: ['budget_usd'],
       reasons: ['Fiscal capacity expanded; active strategy budget parameters remain non-violating.'],
+    },
+  ],
+  audit_records: [
+    {
+      id: 'AUD-002',
+      decision_id: 'DEC-001',
+      goal_id: 'GOAL-001',
+      state_version: 2,
+      tool_calls: ['handle_event', 'evaluate_materiality', 'optimize_cpsat', 'generate_recommendation', 'check_approval'],
+      candidate_strategy_ids: ['STRATEGY-A-B', 'STRATEGY-C', 'STRATEGY-A-B-C'],
+      optimization_status: 'OPTIMAL',
+      recommended_strategy_id: 'STRATEGY-A-B',
+      approval_id: 'APR-001',
+      action_receipt_id: 'ACT-001',
+      event_ids: ['EVENT-001'],
+      timestamp: '15 minutes ago',
+      title: 'State v2 Observe-Adapt Replanning & Strategy Unlocking',
+      summary: 'SSO vendor delay (+18h freed) expanded available buffer to 42h. Strategy optimization synthesized STRATEGY-A-B as OPTIMAL. Routed to Approvals (APR-001) due to $2,500 cost exceeding $2,000 threshold.',
+    },
+    {
+      id: 'AUD-001',
+      decision_id: 'DEC-001',
+      goal_id: 'GOAL-001',
+      state_version: 1,
+      tool_calls: ['load_context', 'interpret_goal', 'plan_evidence', 'generate_strategies', 'optimize_cpsat', 'generate_recommendation'],
+      candidate_strategy_ids: ['STRATEGY-A-B', 'STRATEGY-C', 'STRATEGY-A-B-C'],
+      optimization_status: 'FEASIBLE',
+      recommended_strategy_id: 'STRATEGY-A',
+      approval_id: 'APR-001',
+      action_receipt_id: null,
+      event_ids: [],
+      timestamp: 'Today at 10:14 AM',
+      title: 'State v1 Strategy Portfolio Synthesis & Threshold Evaluation',
+      summary: 'Evaluated growth goal GOAL-001 under 24h capacity constraint. Governor synthesized 3 candidate strategies. Selected STRATEGY-A (6h eng) as initial baseline.',
+    },
+    {
+      id: 'AUD-000',
+      decision_id: 'DEC-000',
+      goal_id: 'GOAL-001',
+      state_version: 1,
+      tool_calls: ['check_approval', 'issue_action_receipt'],
+      candidate_strategy_ids: ['STRATEGY-A'],
+      optimization_status: 'OPTIMAL',
+      recommended_strategy_id: 'STRATEGY-A',
+      approval_id: 'APR-000',
+      action_receipt_id: 'ACT-000',
+      event_ids: ['EVENT-002'],
+      timestamp: 'Yesterday at 3:15 PM',
+      title: 'Initial Pricing Willingness Test Authorization',
+      summary: 'Founder authorized APR-000 ($600 USD, 6h eng). Issued ACT-000 action receipt and set Experiment A to RUNNING.',
     },
   ],
 };
