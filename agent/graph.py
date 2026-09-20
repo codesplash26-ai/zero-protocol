@@ -1,0 +1,144 @@
+from langgraph.graph import (
+    StateGraph,
+    START,
+    END,
+)
+
+from state import AgentState
+
+from nodes.load_context import (
+    load_context_node,
+)
+
+from nodes.interpret_goal import (
+    interpret_goal_node,
+)
+
+from nodes.plan_evidence import (
+    plan_evidence_node,
+)
+
+from nodes.generate_strategies import (
+    generate_strategies_node,
+)
+
+from nodes.evaluate_candidates import (
+    evaluate_candidates_node,
+)
+
+from nodes.optimize import (
+    optimize_node,
+)
+from nodes.strategic_evaluation import (
+    strategic_evaluation_node,
+)
+
+from nodes.generate_recommendation import (
+    generate_recommendation_node,
+)
+
+from nodes.check_approval import (
+    check_approval_node,
+)
+
+def build_graph():
+
+    workflow = StateGraph(
+        AgentState
+    )
+
+    workflow.add_node(
+        "load_context",
+        load_context_node,
+    )
+
+    workflow.add_node(
+        "interpret_goal",
+        interpret_goal_node,
+    )
+
+    workflow.add_node(
+        "plan_evidence",
+        plan_evidence_node,
+    )
+
+    workflow.add_node(
+        "generate_strategies",
+        generate_strategies_node,
+    )
+
+    workflow.add_node(
+        "evaluate_candidates",
+        evaluate_candidates_node,
+    )
+
+    workflow.add_node(
+        "optimize",
+        optimize_node,
+    )
+
+    workflow.add_edge(
+        START,
+        "load_context",
+    )
+
+    workflow.add_edge(
+        "load_context",
+        "interpret_goal",
+    )
+
+    workflow.add_edge(
+        "interpret_goal",
+        "plan_evidence",
+    )
+
+    workflow.add_edge(
+        "plan_evidence",
+        "generate_strategies",
+    )
+
+    workflow.add_edge(
+        "generate_strategies",
+        "evaluate_candidates",
+    )
+
+    workflow.add_edge(
+        "evaluate_candidates",
+        "optimize",
+    )
+
+    
+    workflow.add_node(
+    "strategic_evaluation",
+    strategic_evaluation_node,
+    )
+
+    workflow.add_node(
+        "generate_recommendation",
+        generate_recommendation_node,
+    )
+
+    workflow.add_node(
+        "check_approval",
+        check_approval_node,
+    )
+    workflow.add_edge(
+    "optimize",
+    "strategic_evaluation",
+    )
+
+    workflow.add_edge(
+        "strategic_evaluation",
+        "generate_recommendation",
+    )
+
+    workflow.add_edge(
+        "generate_recommendation",
+        "check_approval",
+    )
+
+    workflow.add_edge(
+        "check_approval",
+        END,
+    )
+    return workflow.compile()

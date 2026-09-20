@@ -1,0 +1,15 @@
+services:
+
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+
+    container_name: experiment-governor-agent
+
+    env_file:
+      - .env
+
+    working_dir: /app
+
+    command: python main.py

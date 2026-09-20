@@ -1,0 +1,71 @@
+{
+  "goal": {
+    "id": "GOAL-001",
+    "text": "Choose our next four-week growth strategy without delaying the enterprise SSO commitment.",
+    "horizon_weeks": 4,
+    "protected_commitments": [
+      "enterprise_sso"
+    ]
+  },
+
+  "organization_state": {
+    "organization_id": "pulseboard",
+    "organization_name": "PulseBoard",
+
+    "budget_usd": 4000,
+
+    "engineering_capacity_hours": 60,
+    "reserved_engineering_hours": 36,
+    "available_engineering_hours": 24,
+
+    "eligible_traffic": 10000,
+
+    "approval_threshold_usd": 2000
+  },
+
+  "experiments": [
+    {
+      "id": "A",
+      "name": "Pricing Willingness Test",
+      "cost_usd": 600,
+      "engineering_hours": 6,
+      "traffic_required": 4000,
+      "dependencies": [],
+      "status": "PROPOSED",
+      "decision_role": "Tests pricing willingness before a larger checkout investment."
+    },
+
+    {
+      "id": "B",
+      "name": "Annual-plan Checkout",
+      "cost_usd": 2500,
+      "engineering_hours": 24,
+      "traffic_required": 3500,
+      "dependencies": [
+        "A"
+      ],
+      "status": "PROPOSED",
+      "decision_role": "Larger investment dependent on evidence from Experiment A."
+    },
+
+    {
+      "id": "C",
+      "name": "Referral Prototype",
+      "cost_usd": 1800,
+      "engineering_hours": 16,
+      "traffic_required": 3000,
+      "dependencies": [],
+      "status": "PROPOSED",
+      "decision_role": "Alternative independent growth path."
+    }
+  ],
+
+  "events": [
+    {
+      "id": "EVENT-001",
+      "event_type": "CAPACITY_CHANGE",
+      "description": "The SSO vendor reports a two-week integration block.",
+      "engineering_delta_hours": 18
+    }
+  ]
+}
