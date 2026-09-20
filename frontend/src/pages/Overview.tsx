@@ -1,110 +1,122 @@
 import React from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LayoutDashboard, Activity, Shield, Cpu } from 'lucide-react';
+import { Section } from '../components/ui/Section';
+import { MetricCard } from '../components/dashboard/MetricCard';
+import { DecisionSummaryCard } from '../components/dashboard/DecisionSummaryCard';
+import { GovernorStatusCard } from '../components/dashboard/GovernorStatusCard';
+import { ExperimentSummaryTable } from '../components/dashboard/ExperimentSummaryTable';
+import { ResourceAllocationSection } from '../components/dashboard/ResourceAllocationSection';
+import { ActivityTimeline } from '../components/dashboard/ActivityTimeline';
+import { pulseboardMockData } from '../mock/pulseboard';
+import { DollarSign, Cpu, Users, Lock } from 'lucide-react';
 
 export const Overview: React.FC = () => {
+  const {
+    organization_state,
+    goal,
+    governor_status,
+    experiments,
+    commitments,
+    recent_activity,
+    decision_workspace,
+  } = pulseboardMockData;
+
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. PAGE HEADER */}
       <PageHeader
         title="Overview"
-        description="Startup state and current decision overview."
-        badge={<Badge variant="default">PulseBoard Workspace</Badge>}
+        description="Your startup's current decision state and operating context."
+        badge={<Badge variant="default">{organization_state.organization_name} Workspace</Badge>}
       />
 
-      <Card padding="lg">
-        <CardHeader>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--color-accent-blue-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-accent-blue)',
-              }}
-            >
-              <LayoutDashboard size={20} />
-            </div>
-            <div>
-              <CardTitle style={{ fontSize: '1.0625rem' }}>System Workspace Initialized</CardTitle>
-              <CardDescription>
-                Startup state and current decision overview.
-              </CardDescription>
-            </div>
+      {/* 2. STARTUP SNAPSHOT (4 Metric Cards) */}
+      <Section>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem',
+          }}
+        >
+          <MetricCard
+            label="EXPERIMENT BUDGET"
+            primaryValue={`$${organization_state.available_engineering_hours ? organization_state.budget_usd.toLocaleString() : organization_state.budget_usd.toLocaleString()}`}
+            secondaryValue={`Total Budget: $${organization_state.budget_usd.toLocaleString()}`}
+            icon={<DollarSign size={20} />}
+            iconBgColor="var(--color-accent-blue-light)"
+            iconColor="var(--color-accent-blue)"
+          />
+
+          <MetricCard
+            label="ENGINEERING CAPACITY"
+            primaryValue={`${organization_state.engineering_capacity_hours}h`}
+            secondaryValue={`Committed: ${organization_state.reserved_engineering_hours}h | Available: ${organization_state.available_engineering_hours}h`}
+            icon={<Cpu size={20} />}
+            iconBgColor="var(--color-governor-teal-light)"
+            iconColor="var(--color-governor-teal)"
+          />
+
+          <MetricCard
+            label="ELIGIBLE TRAFFIC"
+            primaryValue={`${organization_state.eligible_traffic.toLocaleString()}`}
+            secondaryValue="Monthly eligible user sessions"
+            icon={<Users size={20} />}
+            iconBgColor="var(--color-accent-blue-light)"
+            iconColor="var(--color-accent-blue)"
+          />
+
+          <MetricCard
+            label="ACTIVE COMMITMENTS"
+            primaryValue="1 Critical"
+            secondaryValue={`Primary: ${commitments[0]?.name || 'Enterprise SSO'}`}
+            icon={<Lock size={20} />}
+            iconBgColor="var(--color-warning-bg)"
+            iconColor="var(--color-warning)"
+          />
+        </div>
+      </Section>
+
+      {/* 3. CURRENT DECISION & GOVERNOR STATUS */}
+      <Section>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '1.25rem',
+            alignItems: 'stretch',
+          }}
+        >
+          <div style={{ flex: 2 }}>
+            <DecisionSummaryCard
+              goal={goal}
+              recommendationState={decision_workspace.recommendation.recommended_strategy_id || 'STRATEGY-A-B'}
+            />
           </div>
-          <Badge variant="teal" size="md">
-            Active
-          </Badge>
-        </CardHeader>
-
-        <CardContent style={{ marginTop: '1.25rem' }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '1rem',
-              paddingTop: '1rem',
-              borderTop: '1px solid var(--color-border)',
-            }}
-          >
-            <div
-              style={{
-                padding: '0.875rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>
-                <Cpu size={14} style={{ color: 'var(--color-governor-teal)' }} />
-                <span>GOVERNANCE ENGINE</span>
-              </div>
-              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.25rem' }}>
-                Zero Protocol Active
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: '0.875rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>
-                <Shield size={14} style={{ color: 'var(--color-accent-blue)' }} />
-                <span>WORKSPACE MODE</span>
-              </div>
-              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.25rem' }}>
-                Founder Decision Control
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: '0.875rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>
-                <Activity size={14} style={{ color: 'var(--color-success)' }} />
-                <span>FOUNDATION STATE</span>
-              </div>
-              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.25rem' }}>
-                System Ready
-              </div>
-            </div>
+          <div style={{ flex: 1 }}>
+            <GovernorStatusCard status={governor_status} />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Section>
+
+      {/* 4. ACTIVE EXPERIMENTS */}
+      <Section>
+        <ExperimentSummaryTable experiments={experiments} />
+      </Section>
+
+      {/* 5. COMMITMENT & RESOURCE PRESSURE */}
+      <Section>
+        <ResourceAllocationSection
+          organizationState={organization_state}
+          commitments={commitments}
+        />
+      </Section>
+
+      {/* 6. RECENT ACTIVITY */}
+      <Section>
+        <ActivityTimeline activities={recent_activity} />
+      </Section>
     </div>
   );
 };
