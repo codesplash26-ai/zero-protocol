@@ -147,6 +147,32 @@ export interface ActionReceipt {
   executed_at?: string;
 }
 
+export type EventType =
+  | 'EXPERIMENT_RESULT'
+  | 'CAPACITY_CHANGE'
+  | 'BUDGET_CHANGE'
+  | 'DEPENDENCY_CHANGE'
+  | 'COMMITMENT_CHANGE';
+
+export interface Event {
+  id: string; // "EVENT-001"
+  event_type: EventType;
+  description: string;
+  engineering_delta_hours: number;
+  state_version: number;
+  // Extended presentation fields
+  timestamp?: string;
+  budget_delta_usd?: number;
+  source?: string;
+}
+
+export interface MaterialityResult {
+  event_id: string; // "EVENT-001"
+  potentially_material: boolean;
+  affected_fields: string[];
+  reasons: string[];
+}
+
 export interface PulseBoardData {
   organization_state: OrganizationState;
   goal: Goal;
@@ -157,6 +183,8 @@ export interface PulseBoardData {
   decision_workspace: DecisionWorkspaceData;
   approvals: Approval[];
   action_receipts: ActionReceipt[];
+  events: Event[];
+  materiality_results: MaterialityResult[];
 }
 
 export const pulseboardMockData: PulseBoardData = {
@@ -413,6 +441,63 @@ export const pulseboardMockData: PulseBoardData = {
       engineering_reserved_hours: 6,
       status: 'SUCCESS',
       executed_at: 'Yesterday at 3:15 PM',
+    },
+  ],
+  events: [
+    {
+      id: 'EVENT-001',
+      event_type: 'CAPACITY_CHANGE',
+      description: 'The SSO vendor reports a two-week integration block, temporarily freeing 18 engineering hours from the enterprise SSO commitment.',
+      engineering_delta_hours: 18,
+      state_version: 2,
+      timestamp: '15 minutes ago',
+      budget_delta_usd: 0,
+      source: 'SSO Vendor Integration Webhook',
+    },
+    {
+      id: 'EVENT-002',
+      event_type: 'EXPERIMENT_RESULT',
+      description: 'Pricing Willingness Test (A) initial 25% cohort telemetry demonstrates 18% acceptance rate on $35/mo tier.',
+      engineering_delta_hours: 0,
+      state_version: 1,
+      timestamp: '2 hours ago',
+      budget_delta_usd: 0,
+      source: 'Telemetry Pipeline',
+    },
+    {
+      id: 'EVENT-003',
+      event_type: 'BUDGET_CHANGE',
+      description: 'Q3 Growth initiative budget top-up approved by financial controller (+$1,000 USD).',
+      engineering_delta_hours: 0,
+      state_version: 1,
+      timestamp: 'Yesterday at 4:45 PM',
+      budget_delta_usd: 1000,
+      source: 'Finance Integration API',
+    },
+  ],
+  materiality_results: [
+    {
+      event_id: 'EVENT-001',
+      potentially_material: true,
+      affected_fields: ['available_engineering_hours', 'reserved_engineering_hours'],
+      reasons: [
+        'Enterprise SSO engineering commitment reduced from 36h to 18h for current sprint.',
+        'Available experiment engineering buffer expanded from 24h to 42h.',
+        'Unlocks Candidate Strategy STRATEGY-A-B (requires 30h total: 6h Pricing Test + 24h Annual Checkout).',
+        'Strategy STRATEGY-A-B cost ($2,500 USD) exceeds the $2,000 USD founder approval threshold, requiring founder authorization.',
+      ],
+    },
+    {
+      event_id: 'EVENT-002',
+      potentially_material: false,
+      affected_fields: [],
+      reasons: ['Telemetry metric update is within expected baseline bounds; active strategy remains valid.'],
+    },
+    {
+      event_id: 'EVENT-003',
+      potentially_material: false,
+      affected_fields: ['budget_usd'],
+      reasons: ['Fiscal capacity expanded; active strategy budget parameters remain non-violating.'],
     },
   ],
 };
