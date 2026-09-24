@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.database import get_db
-from app.schemas import DecisionCreateRequest, DecisionRun, DecisionWorkspace
+from app.schemas import DecisionCreateRequest, DecisionRun, DecisionWorkspace, ReplanRequest
 from app.services.agent_gateway import AgentGateway, get_agent_gateway
 from app.services.idempotency import get_replay, store_response
 from app.services.orchestration import (
     create_initial_decision,
+    create_replan,
     get_decision_run,
     get_decision_workspace,
 )
@@ -78,4 +79,45 @@ def read_decision_workspace(
         organization_id=settings.default_organization_id,
         decision_id=decision_id,
     )
+
+
+@router.post(
+    "/decisions/{decision_id}/replans",
+    response_model=DecisionRun,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_decision_replan(
+    decision_id: str,
+    request: ReplanRequest,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=1),
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    gateway: AgentGateway = Depends(get_agent_gateway),
+) -> DecisionRun:
+    payload = request.model_dump(mode="json")
+    scope = f"POST:/api/v1/decisions/{decision_id}/replans"
+    replayed = False
+    with session.begin():
+        replay = get_replay(session, scope=scope, key=idempotency_key, payload=payload)
+        if replay is not None:
+            response = DecisionRun.model_validate(replay)
+            replayed = True
+        else:
+            response = create_replan(
+                session,
+                organization_id=settings.default_organization_id,
+                decision_id=decision_id,
+                request=request,
+            )
+            store_response(
+                session,
+                scope=scope,
+                key=idempotency_key,
+                payload=payload,
+                status_code=202,
+                response_body=response.model_dump(mode="json"),
+            )
+    if not replayed:
+        gateway.dispatch_replan(response.id)
+    return response
 

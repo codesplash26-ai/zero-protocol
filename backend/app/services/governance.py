@@ -30,10 +30,12 @@ from app.schemas import (
     ApprovalDecision,
     ApprovalDecisionRequest,
     ApprovalPolicyResult,
+    EventType,
     ExperimentOutcome,
     ExperimentStatus,
 )
 from app.services.audit import append_audit
+from app.services.events import record_system_event
 from app.services.identifiers import new_id
 from app.services.state import lock_current_state, require_state_version
 
@@ -523,6 +525,23 @@ def execute_action(
         idempotency_key=idempotency_key,
     )
     session.add_all([next_state, receipt])
+    lifecycle_event = record_system_event(
+        session,
+        organization_id=organization_id,
+        event_type=EventType.EXPERIMENT_RESULT,
+        description=f"Experiment {experiment.id} started through an authorized action.",
+        source="controlled_action",
+        state_version=next_state.state_version,
+        experiment_id=experiment.id,
+        experiment_outcome=ExperimentOutcome.PENDING,
+        changes={
+            "experiment_status": {
+                "before": previous_status,
+                "after": ExperimentStatus.RUNNING.value,
+            }
+        },
+        occurred_at=now,
+    )
     session.execute(
         update(ApprovalRecord)
         .where(
@@ -544,6 +563,7 @@ def execute_action(
         state_version=next_state.state_version,
         approval_id=approval.id,
         action_receipt_id=receipt.id,
+        event_ids=[lifecycle_event.id],
         title="Experiment started",
         summary=f"Started experiment {experiment.id} through controlled action.",
     )

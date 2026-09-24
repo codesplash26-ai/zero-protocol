@@ -6,7 +6,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import APIError
-from app.models import CandidateStrategyRecord, Decision, RecommendationRecord, SolverRun
+from app.models import (
+    ApprovalRecord,
+    CandidateStrategyRecord,
+    Decision,
+    EventRecord,
+    MaterialityRecord,
+    RecommendationRecord,
+    SolverRun,
+)
 from app.models import DecisionRun as DecisionRunRecord
 from app.models import Goal as GoalRecord
 from app.repositories import (
@@ -31,6 +39,7 @@ from app.schemas import (
     OptimizationResult,
     Recommendation,
     RecommendationPersistRequest,
+    ReplanRequest,
     StrategyView,
 )
 from app.services.audit import append_audit
@@ -158,6 +167,118 @@ def get_decision_run(session: Session, run_id: str) -> DecisionRun:
             {"run_id": run_id},
         )
     return decision_run_to_schema(record)
+
+
+def create_replan(
+    session: Session,
+    *,
+    organization_id: str,
+    decision_id: str,
+    request: ReplanRequest,
+) -> DecisionRun:
+    decision = session.scalar(
+        select(Decision).where(
+            Decision.id == decision_id,
+            Decision.organization_id == organization_id,
+        )
+    )
+    if decision is None:
+        raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
+    current = lock_current_state(session, organization_id)
+    require_state_version(current, request.expected_state_version)
+
+    run_type: DecisionRunType
+    if request.trigger_event_id is not None:
+        event = session.scalar(
+            select(EventRecord).where(
+                EventRecord.id == request.trigger_event_id,
+                EventRecord.organization_id == organization_id,
+            )
+        )
+        materiality = session.get(MaterialityRecord, request.trigger_event_id)
+        if event is None:
+            raise APIError(
+                404,
+                "EVENT_OR_APPROVAL_NOT_FOUND",
+                "The replan event was not found.",
+            )
+        if materiality is None or not materiality.potentially_material:
+            raise APIError(
+                409,
+                "EVENT_NOT_MATERIAL",
+                "The event has not been classified as potentially material.",
+            )
+        if event.state_version != current.state_version:
+            raise APIError(
+                409,
+                "STATE_VERSION_CONFLICT",
+                "The event does not describe the current organization state.",
+                {"expected": event.state_version, "actual": current.state_version},
+            )
+        run_type = DecisionRunType.MATERIAL_EVENT
+    else:
+        approval = session.scalar(
+            select(ApprovalRecord)
+            .join(Decision, Decision.id == ApprovalRecord.decision_id)
+            .where(
+                ApprovalRecord.id == request.trigger_approval_id,
+                ApprovalRecord.decision_id == decision_id,
+                Decision.organization_id == organization_id,
+            )
+        )
+        if approval is None:
+            raise APIError(
+                404,
+                "EVENT_OR_APPROVAL_NOT_FOUND",
+                "The replan approval was not found.",
+            )
+        if approval.state_version != current.state_version:
+            raise APIError(409, "APPROVAL_INVALIDATED", "The approval is stale.")
+        run_type = DecisionRunType.APPROVAL_REPLAN_REQUEST
+
+    active = session.scalar(
+        select(DecisionRunRecord)
+        .where(
+            DecisionRunRecord.decision_id == decision_id,
+            DecisionRunRecord.status.in_(["QUEUED", "RUNNING"]),
+        )
+        .limit(1)
+    )
+    if active is not None:
+        raise APIError(
+            409,
+            "ACTIVE_RUN_EXISTS",
+            "An active Governor run already exists for this decision.",
+            {"run_id": active.id},
+        )
+
+    run = DecisionRunRecord(
+        id=new_id("RUN"),
+        decision_id=decision_id,
+        run_type=run_type.value,
+        status=DecisionRunStatus.QUEUED.value,
+        result=None,
+        trigger_event_id=request.trigger_event_id,
+        trigger_approval_id=request.trigger_approval_id,
+        input_state_version=current.state_version,
+        recommendation_state_version=None,
+        error=None,
+        completed_at=None,
+    )
+    session.add(run)
+    append_audit(
+        session,
+        organization_id=organization_id,
+        decision_id=decision.id,
+        goal_id=decision.goal_id,
+        state_version=current.state_version,
+        approval_id=request.trigger_approval_id,
+        event_ids=[request.trigger_event_id] if request.trigger_event_id else [],
+        title="Replan run queued",
+        summary=f"Queued {run.run_type} Governor run {run.id}.",
+    )
+    session.flush()
+    return decision_run_to_schema(run)
 
 
 def persist_optimization(

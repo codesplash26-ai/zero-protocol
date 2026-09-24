@@ -400,11 +400,6 @@ class SolverRun(Base):
 
 class RecommendationRecord(Base):
     __tablename__ = "recommendations"
-    __table_args__ = (
-        UniqueConstraint(
-            "decision_id", "state_version", name="uq_recommendation_decision_state"
-        ),
-    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     decision_id: Mapped[str] = mapped_column(
@@ -523,3 +518,55 @@ class ActionReceiptRecord(Base):
         DateTime(timezone=True), default=utc_now, nullable=False
     )
     idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class EventRecord(Base):
+    __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('EXPERIMENT_RESULT', 'CAPACITY_CHANGE', "
+            "'BUDGET_CHANGE', 'DEPENDENCY_CHANGE', 'COMMITMENT_CHANGE')",
+            name="ck_event_type_allowed",
+        ),
+        CheckConstraint("state_version >= 1", name="ck_event_state_version_positive"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    engineering_delta_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    budget_delta_usd: Mapped[int] = mapped_column(Integer, nullable=False)
+    experiment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    experiment_outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    commitment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("commitments.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    source: Mapped[str] = mapped_column(String(200), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    changes: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class MaterialityRecord(Base):
+    __tablename__ = "materiality_results"
+
+    event_id: Mapped[str] = mapped_column(
+        ForeignKey("events.id", ondelete="CASCADE"), primary_key=True
+    )
+    potentially_material: Mapped[bool] = mapped_column(Boolean, nullable=False, index=True)
+    affected_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )

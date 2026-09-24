@@ -82,6 +82,14 @@ class ActionReceiptStatus(StrEnum):
     PENDING = "PENDING"
 
 
+class EventType(StrEnum):
+    EXPERIMENT_RESULT = "EXPERIMENT_RESULT"
+    CAPACITY_CHANGE = "CAPACITY_CHANGE"
+    BUDGET_CHANGE = "BUDGET_CHANGE"
+    DEPENDENCY_CHANGE = "DEPENDENCY_CHANGE"
+    COMMITMENT_CHANGE = "COMMITMENT_CHANGE"
+
+
 class OrganizationState(StrictModel):
     organization_id: str
     organization_name: str
@@ -326,6 +334,54 @@ class ActionReceipt(StrictModel):
     state_version: int = Field(ge=1)
     executed_at: datetime
     idempotency_key: str
+
+
+class Event(StrictModel):
+    id: str
+    event_type: EventType
+    description: str
+    engineering_delta_hours: int
+    budget_delta_usd: int
+    experiment_id: str | None
+    experiment_outcome: ExperimentOutcome | None
+    commitment_id: str | None
+    source: str
+    occurred_at: datetime
+    state_version: int = Field(ge=1)
+
+
+class EventCreateRequest(StrictModel):
+    event_type: EventType
+    description: str = Field(min_length=1)
+    engineering_delta_hours: int = 0
+    budget_delta_usd: int = 0
+    experiment_id: str | None = None
+    experiment_outcome: ExperimentOutcome | None = None
+    commitment_id: str | None = None
+    source: str = Field(min_length=1)
+    occurred_at: datetime
+    expected_state_version: int = Field(ge=1)
+
+
+class MaterialityResult(StrictModel):
+    event_id: str
+    potentially_material: bool
+    affected_fields: list[str]
+    reasons: list[str]
+    state_version: int = Field(ge=1)
+
+
+class ReplanRequest(StrictModel):
+    trigger_event_id: str | None = None
+    trigger_approval_id: str | None = None
+    expected_state_version: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_single_trigger(self) -> ReplanRequest:
+        triggers = [self.trigger_event_id, self.trigger_approval_id]
+        if sum(item is not None for item in triggers) != 1:
+            raise ValueError("Exactly one replan trigger must be supplied")
+        return self
 
 
 class DecisionCreateRequest(StrictModel):
