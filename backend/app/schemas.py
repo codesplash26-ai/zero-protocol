@@ -66,6 +66,13 @@ class Goal(StrictModel):
     protected_commitments: list[str]
 
 
+class GoalCreateRequest(StrictModel):
+    text: str = Field(min_length=1)
+    horizon_weeks: int = Field(gt=0)
+    protected_commitments: list[str]
+    expected_state_version: int = Field(ge=1)
+
+
 class Commitment(StrictModel):
     id: str
     name: str
@@ -98,6 +105,19 @@ class EvidenceItem(StrictModel):
     id: str
     source: str
     content: str
+    quality: EvidenceQuality
+    relevance: str | None = None
+    retrieved_at: datetime | None = None
+    freshness: str | None = None
+    trust_level: str | None = None
+    conflicts: list[str] = Field(default_factory=list)
+
+
+class EvidenceCreateRequest(StrictModel):
+    goal_id: str | None = None
+    experiment_id: str | None = None
+    source: str = Field(min_length=1)
+    content: str = Field(min_length=1)
     quality: EvidenceQuality
     relevance: str | None = None
     retrieved_at: datetime | None = None

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.api.writes import router as writes_router
 from app.config import get_settings
 from app.errors import install_error_handlers
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": settings.app_version}
 
     app.include_router(router, prefix=settings.api_v1_prefix)
+    app.include_router(writes_router, prefix=settings.api_v1_prefix)
     install_error_handlers(app)
     return app
 

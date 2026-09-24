@@ -249,3 +249,53 @@ class EvidenceItem(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+
+
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint("scope", "idempotency_key", name="uq_idempotency_scope_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(200), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_body: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class AuditRecord(Base):
+    __tablename__ = "audit_records"
+    __table_args__ = (
+        CheckConstraint("state_version >= 1", name="ck_audit_state_version_positive"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    decision_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    goal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    tool_calls: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    candidate_strategy_ids: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    optimization_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    recommended_strategy_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    approval_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    action_receipt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
