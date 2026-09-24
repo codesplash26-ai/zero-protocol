@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.api.decisions import router as decisions_router
 from app.api.events import router as events_router
@@ -14,6 +16,7 @@ from app.api.internal import router as internal_router
 from app.api.routes import router
 from app.api.writes import router as writes_router
 from app.config import get_settings
+from app.database import get_db
 from app.errors import install_error_handlers
 
 
@@ -47,6 +50,11 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
         return {"status": "ok", "version": settings.app_version}
+
+    @app.get("/ready", tags=["operations"])
+    def readiness(session: Session = Depends(get_db)) -> dict[str, str]:
+        session.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "available"}
 
     app.include_router(router, prefix=settings.api_v1_prefix)
     app.include_router(writes_router, prefix=settings.api_v1_prefix)

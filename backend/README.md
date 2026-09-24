@@ -24,3 +24,6 @@ The API is available at `http://localhost:8000`, with interactive documentation 
 
 The backend container applies migrations and idempotently seeds PulseBoard on startup.
 
+Use `GET /health` for liveness and `GET /ready` for database-backed readiness.
+Experiment-plan uploads accept JSON text or multipart PDF, DOCX, and UTF-8 TXT
+files up to `IMPORT_MAX_BYTES` (5 MiB by default).
