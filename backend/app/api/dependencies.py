@@ -5,7 +5,7 @@ from app.errors import APIError
 
 
 def require_internal_service(
-    internal_key: str = Header(alias="X-Internal-Service-Key"),
+    internal_key: str | None = Header(default=None, alias="X-Internal-Service-Key"),
     settings: Settings = Depends(get_settings),
 ) -> None:
     if internal_key != settings.internal_service_key:

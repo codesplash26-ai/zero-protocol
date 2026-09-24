@@ -64,6 +64,24 @@ class DecisionRunResult(StrEnum):
     NO_ACTION = "NO_ACTION"
 
 
+class ActionType(StrEnum):
+    START_EXPERIMENT = "START_EXPERIMENT"
+
+
+class ApprovalDecision(StrEnum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    INVALIDATED = "INVALIDATED"
+
+
+class ActionReceiptStatus(StrEnum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PENDING = "PENDING"
+
+
 class OrganizationState(StrictModel):
     organization_id: str
     organization_name: str
@@ -227,6 +245,87 @@ class RecommendationPersistRequest(StrictModel):
     candidate_strategies: list[CandidateStrategy] = Field(min_length=1)
     recommendation: Recommendation
     tool_calls: list[str] = Field(default_factory=list)
+
+
+class Approval(StrictModel):
+    id: str
+    decision_id: str
+    strategy_id: str
+    experiment_id: str
+    action_type: ActionType
+    decision: ApprovalDecision
+    reason: str
+    threshold_usd: int = Field(ge=0)
+    authorized_cost_usd: int = Field(ge=0)
+    authorized_engineering_hours: int = Field(ge=0)
+    authorized_traffic: int = Field(ge=0)
+    state_version: int = Field(ge=1)
+    requested_by: str
+    decided_by: str | None
+    requested_at: datetime
+    decided_at: datetime | None
+    expires_at: datetime | None
+
+
+class ApprovalCheckRequest(StrictModel):
+    decision_id: str
+    strategy_id: str
+    experiment_id: str
+    action_type: ActionType
+    expected_state_version: int = Field(ge=1)
+
+
+class ApprovalPolicyResult(StrictModel):
+    approval_required: bool
+    decision: ApprovalDecision
+    reason: str
+    threshold_usd: int = Field(ge=0)
+    authorized_cost_usd: int = Field(ge=0)
+    authorized_engineering_hours: int = Field(ge=0)
+    authorized_traffic: int = Field(ge=0)
+    state_version: int = Field(ge=1)
+
+
+class ApprovalCreateRequest(ApprovalCheckRequest):
+    requested_by: str = Field(min_length=1)
+
+
+class ApprovalDecisionRequest(StrictModel):
+    decision: ApprovalDecision
+    reason: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    expected_state_version: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_human_decision(self) -> ApprovalDecisionRequest:
+        if self.decision not in {ApprovalDecision.APPROVED, ApprovalDecision.REJECTED}:
+            raise ValueError("Clients may only submit APPROVED or REJECTED")
+        return self
+
+
+class ActionExecuteRequest(StrictModel):
+    decision_id: str
+    strategy_id: str
+    experiment_id: str
+    action_type: ActionType
+    approval_id: str
+    expected_state_version: int = Field(ge=1)
+
+
+class ActionReceipt(StrictModel):
+    id: str
+    approval_id: str
+    decision_id: str
+    strategy_id: str
+    experiment_id: str
+    previous_status: ExperimentStatus
+    new_status: ExperimentStatus
+    budget_reserved_usd: int = Field(ge=0)
+    engineering_reserved_hours: int = Field(ge=0)
+    status: ActionReceiptStatus
+    state_version: int = Field(ge=1)
+    executed_at: datetime
+    idempotency_key: str
 
 
 class DecisionCreateRequest(StrictModel):

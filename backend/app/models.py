@@ -426,3 +426,100 @@ class RecommendationRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+
+
+class ApprovalRecord(Base):
+    __tablename__ = "approvals"
+    __table_args__ = (
+        CheckConstraint(
+            "action_type IN ('START_EXPERIMENT')",
+            name="ck_approval_action_type_allowed",
+        ),
+        CheckConstraint(
+            "decision IN ('NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED', 'INVALIDATED')",
+            name="ck_approval_decision_allowed",
+        ),
+        CheckConstraint("threshold_usd >= 0", name="ck_approval_threshold_nonnegative"),
+        CheckConstraint("authorized_cost_usd >= 0", name="ck_approval_cost_nonnegative"),
+        CheckConstraint(
+            "authorized_engineering_hours >= 0",
+            name="ck_approval_engineering_nonnegative",
+        ),
+        CheckConstraint("authorized_traffic >= 0", name="ck_approval_traffic_nonnegative"),
+        UniqueConstraint(
+            "decision_id",
+            "strategy_id",
+            "experiment_id",
+            "action_type",
+            "state_version",
+            name="uq_approval_scope_state",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    strategy_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    experiment_id: Mapped[str] = mapped_column(
+        ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    action_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    threshold_usd: Mapped[int] = mapped_column(Integer, nullable=False)
+    authorized_cost_usd: Mapped[int] = mapped_column(Integer, nullable=False)
+    authorized_engineering_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    authorized_traffic: Mapped[int] = mapped_column(Integer, nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    requested_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    decided_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ActionReceiptRecord(Base):
+    __tablename__ = "action_receipts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('SUCCESS', 'FAILED', 'PENDING')",
+            name="ck_action_receipt_status_allowed",
+        ),
+        CheckConstraint("budget_reserved_usd >= 0", name="ck_receipt_budget_nonnegative"),
+        CheckConstraint(
+            "engineering_reserved_hours >= 0",
+            name="ck_receipt_engineering_nonnegative",
+        ),
+        UniqueConstraint("approval_id", name="uq_action_receipt_approval"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    approval_id: Mapped[str] = mapped_column(
+        ForeignKey("approvals.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    strategy_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"), nullable=False
+    )
+    experiment_id: Mapped[str] = mapped_column(
+        ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    previous_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    new_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    budget_reserved_usd: Mapped[int] = mapped_column(Integer, nullable=False)
+    engineering_reserved_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    executed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)

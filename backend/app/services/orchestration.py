@@ -17,6 +17,7 @@ from app.repositories import (
     list_experiments,
 )
 from app.schemas import (
+    ApprovalDecision,
     CandidateStrategy,
     ConsequenceCalculateRequest,
     ConsequenceResult,
@@ -301,6 +302,10 @@ def persist_recommendation(
         existing.feasibility = feasibility.model_dump(mode="json")
         existing.consequences = consequences.model_dump(mode="json")
 
+    # Candidate strategies must exist before recommendation and approval foreign keys
+    # can be persisted, especially when PostgreSQL enforces them immediately.
+    session.flush()
+
     executable = recommendation.current_executable_experiment_id
     if executable is not None:
         executable_result = check_feasibility(
@@ -332,10 +337,20 @@ def persist_recommendation(
         later=recommendation.later,
         defer=recommendation.defer,
         reasoning_summary=recommendation.reasoning_summary,
-        requires_approval=recommendation.requires_approval,
+        # The backend policy is authoritative; the agent-provided flag is advisory only.
+        requires_approval=False,
         state_version=recommendation.state_version,
     )
     session.add(record)
+    session.flush()
+    from app.services.governance import ensure_approval_for_recommendation
+
+    approval = ensure_approval_for_recommendation(
+        session,
+        organization_id=organization_id,
+        recommendation=record,
+    )
+    record.requires_approval = bool(approval and approval.decision == ApprovalDecision.PENDING)
     run.status = DecisionRunStatus.SUCCEEDED.value
     run.result = DecisionRunResult.NEW_RECOMMENDATION.value
     run.recommendation_state_version = recommendation.state_version
