@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.errors import APIError
-from app.models import Organization, OrganizationState
+from app.models import ApprovalRecord, Decision, Organization, OrganizationState
 
 
 def lock_current_state(session: Session, organization_id: str) -> OrganizationState:
@@ -49,4 +49,25 @@ def copy_next_state(session: Session, current: OrganizationState) -> Organizatio
     )
     session.add(next_state)
     return next_state
+
+
+def invalidate_approvals_for_version(
+    session: Session,
+    *,
+    organization_id: str,
+    state_version: int,
+    exclude_approval_id: str | None = None,
+) -> None:
+    conditions = [
+        ApprovalRecord.decision_id.in_(
+            select(Decision.id).where(Decision.organization_id == organization_id)
+        ),
+        ApprovalRecord.state_version == state_version,
+        ApprovalRecord.decision.in_(["NOT_REQUIRED", "PENDING", "APPROVED"]),
+    ]
+    if exclude_approval_id is not None:
+        conditions.append(ApprovalRecord.id != exclude_approval_id)
+    session.execute(
+        update(ApprovalRecord).where(*conditions).values(decision="INVALIDATED")
+    )
 

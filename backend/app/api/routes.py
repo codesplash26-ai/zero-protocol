@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.errors import APIError
+from app.models import (
+    ApprovalRecord,
+    AuditRecord,
+    Decision,
+    DecisionRun,
+    RecommendationRecord,
+)
 from app.repositories import (
     get_active_goal,
     get_current_state,
@@ -33,6 +41,8 @@ from app.schemas import (
     OverviewSnapshot,
 )
 from app.services.evaluation import calculate_consequences, check_feasibility
+from app.services.history import audit_to_schema
+from app.services.orchestration import recommendation_to_schema
 
 router = APIRouter()
 
@@ -68,20 +78,79 @@ def read_overview(
     session: Session = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> OverviewSnapshot:
     organization_id = settings.default_organization_id
+    current = get_current_state(session, organization_id)
+    active_run = session.scalar(
+        select(DecisionRun)
+        .join(Decision, Decision.id == DecisionRun.decision_id)
+        .where(
+            Decision.organization_id == organization_id,
+            DecisionRun.status.in_(["QUEUED", "RUNNING"]),
+        )
+        .order_by(DecisionRun.created_at.desc())
+        .limit(1)
+    )
+    latest_run = session.scalar(
+        select(DecisionRun)
+        .join(Decision, Decision.id == DecisionRun.decision_id)
+        .where(Decision.organization_id == organization_id)
+        .order_by(DecisionRun.created_at.desc())
+        .limit(1)
+    )
+    latest_recommendation = session.scalar(
+        select(RecommendationRecord)
+        .join(Decision, Decision.id == RecommendationRecord.decision_id)
+        .where(Decision.organization_id == organization_id)
+        .order_by(RecommendationRecord.created_at.desc())
+        .limit(1)
+    )
+    pending_approvals = session.scalar(
+        select(func.count(ApprovalRecord.id))
+        .join(Decision, Decision.id == ApprovalRecord.decision_id)
+        .where(
+            Decision.organization_id == organization_id,
+            ApprovalRecord.decision == "PENDING",
+        )
+    )
+    recent_records = session.scalars(
+        select(AuditRecord)
+        .where(AuditRecord.organization_id == organization_id)
+        .order_by(AuditRecord.created_at.desc(), AuditRecord.id.desc())
+        .limit(10)
+    ).all()
+    latest_activity = recent_records[0].created_at if recent_records else None
+    governor_state = "MONITORING"
+    if active_run is not None:
+        governor_state = (
+            "REPLANNING" if active_run.run_type != "INITIAL" else "RUNNING"
+        )
+    elif latest_run is not None and latest_run.status == "FAILED":
+        governor_state = "FAILED"
     return OverviewSnapshot(
-        organization_state=get_current_state(session, organization_id),
+        organization_state=current,
         active_goal=get_active_goal(session, organization_id),
         governor_status=GovernorStatus(
-            state="MONITORING",
-            decision_cycle="READY",
-            active_run_id=None,
-            last_activity_at=None,
+            state=governor_state,
+            decision_cycle=(
+                active_run.run_type
+                if active_run is not None
+                else latest_run.result or latest_run.status
+                if latest_run is not None
+                else "READY"
+            ),
+            active_run_id=active_run.id if active_run else None,
+            last_activity_at=latest_activity,
         ),
         experiments=list_experiments(session, organization_id),
         commitments=list_commitments(session, organization_id),
-        latest_recommendation=None,
-        pending_approval_count=0,
-        recent_activity=[],
+        latest_recommendation=(
+            recommendation_to_schema(latest_recommendation).model_dump(mode="json")
+            if latest_recommendation
+            else None
+        ),
+        pending_approval_count=pending_approvals or 0,
+        recent_activity=[
+            audit_to_schema(record).model_dump(mode="json") for record in recent_records
+        ],
     )
 
 

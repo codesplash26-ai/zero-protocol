@@ -2,18 +2,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import APIError
 from app.models import (
-    ApprovalRecord,
-    Decision,
-    EventRecord,
-    MaterialityRecord,
+    Commitment as CommitmentRecord,
 )
 from app.models import (
-    Commitment as CommitmentRecord,
+    EventRecord,
+    MaterialityRecord,
 )
 from app.models import (
     Experiment as ExperimentRecord,
@@ -31,7 +29,11 @@ from app.schemas import (
 )
 from app.services.audit import append_audit
 from app.services.identifiers import new_id
-from app.services.state import lock_current_state, require_state_version
+from app.services.state import (
+    invalidate_approvals_for_version,
+    lock_current_state,
+    require_state_version,
+)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -327,16 +329,10 @@ def create_event(
         changes=changes,
     )
     session.add_all([next_state, record])
-    session.execute(
-        update(ApprovalRecord)
-        .where(
-            ApprovalRecord.state_version == current.state_version,
-            ApprovalRecord.decision.in_(["NOT_REQUIRED", "PENDING", "APPROVED"]),
-            ApprovalRecord.decision_id.in_(
-                select(Decision.id).where(Decision.organization_id == organization_id)
-            ),
-        )
-        .values(decision="INVALIDATED")
+    invalidate_approvals_for_version(
+        session,
+        organization_id=organization_id,
+        state_version=current.state_version,
     )
     append_audit(
         session,

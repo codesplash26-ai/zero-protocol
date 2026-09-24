@@ -90,6 +90,21 @@ class EventType(StrEnum):
     COMMITMENT_CHANGE = "COMMITMENT_CHANGE"
 
 
+class ExperimentImportStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CONFIRMED = "CONFIRMED"
+
+
+class ExperimentImportSourceType(StrEnum):
+    TEXT = "TEXT"
+    PDF = "PDF"
+    DOCX = "DOCX"
+    TXT = "TXT"
+
+
 class OrganizationState(StrictModel):
     organization_id: str
     organization_name: str
@@ -336,6 +351,23 @@ class ActionReceipt(StrictModel):
     idempotency_key: str
 
 
+class AuditRecord(StrictModel):
+    id: str
+    decision_id: str | None
+    goal_id: str | None
+    state_version: int = Field(ge=1)
+    tool_calls: list[str]
+    candidate_strategy_ids: list[str]
+    optimization_status: str | None
+    recommended_strategy_id: str | None
+    approval_id: str | None
+    action_receipt_id: str | None
+    event_ids: list[str]
+    title: str
+    summary: str
+    created_at: datetime
+
+
 class Event(StrictModel):
     id: str
     event_type: EventType
@@ -382,6 +414,118 @@ class ReplanRequest(StrictModel):
         if sum(item is not None for item in triggers) != 1:
             raise ValueError("Exactly one replan trigger must be supplied")
         return self
+
+
+class FieldProvenance(StrictModel):
+    field: str
+    source: str
+    quality: EvidenceQuality
+    excerpt: str | None = None
+
+
+class ExperimentImportDraft(StrictModel):
+    name: str | None = None
+    short_description: str | None = None
+    objective: str | None = None
+    hypothesis: str | None = None
+    cost_usd: int | None = Field(default=None, ge=0)
+    engineering_hours: int | None = Field(default=None, ge=0)
+    traffic_required: int | None = Field(default=None, ge=0)
+    duration: str | None = None
+    success_threshold: str | None = None
+    dependencies: list[str] = Field(default_factory=list)
+    decision_role: str | None = None
+    field_provenance: list[FieldProvenance] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+
+
+class ExperimentImportJob(StrictModel):
+    id: str
+    status: ExperimentImportStatus
+    source_name: str
+    draft: ExperimentImportDraft | None
+    error: dict | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class ExperimentImportSource(StrictModel):
+    id: str
+    source_type: ExperimentImportSourceType
+    source_name: str
+    text: str | None
+    content_base64: str | None
+    sha256: str
+
+
+class ExperimentImportCreateRequest(StrictModel):
+    source_type: ExperimentImportSourceType
+    text: str = Field(min_length=1)
+    source_name: str = Field(min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def validate_text_source(self) -> ExperimentImportCreateRequest:
+        if self.source_type is not ExperimentImportSourceType.TEXT:
+            raise ValueError("JSON imports must use source_type TEXT")
+        return self
+
+
+class ImportInterpretationRequest(StrictModel):
+    draft: ExperimentImportDraft | None = None
+    error: dict | None = None
+
+    @model_validator(mode="after")
+    def validate_result(self) -> ImportInterpretationRequest:
+        if (self.draft is None) == (self.error is None):
+            raise ValueError("Exactly one of draft or error must be supplied")
+        return self
+
+
+class ExperimentEvidenceInput(StrictModel):
+    source: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1)
+    quality: EvidenceQuality
+    relevance: str | None = None
+    retrieved_at: datetime | None = None
+    freshness: str | None = None
+    trust_level: str | None = None
+    conflicts: list[str] = Field(default_factory=list)
+
+
+class CanonicalExperimentInput(StrictModel):
+    name: str = Field(min_length=1, max_length=200)
+    cost_usd: int = Field(ge=0)
+    engineering_hours: int = Field(ge=0)
+    traffic_required: int = Field(ge=0)
+    dependencies: list[str] = Field(default_factory=list)
+    decision_role: str | None = None
+
+    @model_validator(mode="after")
+    def validate_unique_dependencies(self) -> CanonicalExperimentInput:
+        if len(set(self.dependencies)) != len(self.dependencies):
+            raise ValueError("dependencies must be unique")
+        return self
+
+
+class ExperimentCreateRequest(CanonicalExperimentInput):
+    evidence_items: list[ExperimentEvidenceInput] = Field(default_factory=list)
+    expected_state_version: int = Field(ge=1)
+
+
+class ExperimentConfirmationInput(StrictModel):
+    name: str | None = Field(default=None, max_length=200)
+    cost_usd: int | None = Field(default=None, ge=0)
+    engineering_hours: int | None = Field(default=None, ge=0)
+    traffic_required: int | None = Field(default=None, ge=0)
+    dependencies: list[str] = Field(default_factory=list)
+    decision_role: str | None = None
+
+
+class ExperimentImportConfirmRequest(StrictModel):
+    experiment: ExperimentConfirmationInput
+    evidence_items: list[ExperimentEvidenceInput] = Field(default_factory=list)
+    expected_state_version: int = Field(ge=1)
 
 
 class DecisionCreateRequest(StrictModel):

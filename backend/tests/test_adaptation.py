@@ -226,6 +226,29 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
     assert action_b.status_code == 201
     assert action_b.json()["state_version"] == 5
     assert client.get("/api/v1/experiments/B").json()["status"] == "RUNNING"
+    latest = client.get(
+        f"/api/v1/recommendations/{initial_run['decision_id']}"
+    )
+    assert latest.status_code == 200
+    assert latest.json()["current_executable_experiment_id"] == "B"
+    audit = client.get(f"/api/v1/audit/{initial_run['decision_id']}")
+    assert audit.status_code == 200
+    titles = [item["title"] for item in audit.json()["items"]]
+    assert "Event materiality evaluated" in titles
+    assert "Replan run queued" in titles
+    assert titles.count("Experiment started") == 2
+    filtered_audit = client.get(
+        "/api/v1/audit",
+        params={"event_id": capacity["id"], "query": "materiality"},
+    )
+    assert len(filtered_audit.json()["items"]) == 1
+    overview = client.get("/api/v1/overview").json()
+    assert overview["organization_state"]["state_version"] == 5
+    assert overview["latest_recommendation"][
+        "current_executable_experiment_id"
+    ] == "B"
+    assert overview["governor_status"]["state"] == "MONITORING"
+    assert overview["recent_activity"]
 
 
 def test_invalid_event_rolls_back_without_state_change(client):

@@ -16,7 +16,12 @@ from app.schemas import EvidenceCreateRequest, EvidenceItem, Goal, GoalCreateReq
 from app.services.audit import append_audit
 from app.services.idempotency import get_replay, store_response
 from app.services.identifiers import new_id
-from app.services.state import copy_next_state, lock_current_state, require_state_version
+from app.services.state import (
+    copy_next_state,
+    invalidate_approvals_for_version,
+    lock_current_state,
+    require_state_version,
+)
 
 router = APIRouter()
 
@@ -65,6 +70,11 @@ def create_goal(
         record.protected_commitments.extend(commitments)
         session.add(record)
         next_state = copy_next_state(session, current)
+        invalidate_approvals_for_version(
+            session,
+            organization_id=settings.default_organization_id,
+            state_version=current.state_version,
+        )
         session.flush()
 
         response = goal_to_schema(record)

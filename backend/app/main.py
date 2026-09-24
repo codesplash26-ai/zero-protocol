@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.decisions import router as decisions_router
 from app.api.events import router as events_router
 from app.api.governance import router as governance_router
+from app.api.history import router as history_router
+from app.api.intake import router as intake_router
 from app.api.internal import router as internal_router
 from app.api.routes import router
 from app.api.writes import router as writes_router
@@ -51,6 +53,8 @@ def create_app() -> FastAPI:
     app.include_router(decisions_router, prefix=settings.api_v1_prefix)
     app.include_router(events_router, prefix=settings.api_v1_prefix)
     app.include_router(governance_router, prefix=settings.api_v1_prefix)
+    app.include_router(history_router, prefix=settings.api_v1_prefix)
+    app.include_router(intake_router, prefix=settings.api_v1_prefix)
     app.include_router(internal_router, prefix=settings.api_v1_prefix)
     install_error_handlers(app)
     return app

@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    LargeBinary,
     String,
     Table,
     Text,
@@ -569,4 +570,43 @@ class MaterialityRecord(Base):
     state_version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class ExperimentImportRecord(Base):
+    __tablename__ = "experiment_imports"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CONFIRMED')",
+            name="ck_experiment_import_status_allowed",
+        ),
+        CheckConstraint(
+            "source_type IN ('TEXT', 'PDF', 'DOCX', 'TXT')",
+            name="ck_experiment_import_source_type_allowed",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    draft: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    confirmed_experiment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )

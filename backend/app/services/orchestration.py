@@ -589,3 +589,27 @@ def get_decision_workspace(
         latest_run=decision_run_to_schema(latest_run_record),
         state_version=current.state_version,
     )
+
+
+def get_latest_recommendation(
+    session: Session, *, organization_id: str, decision_id: str
+) -> Recommendation:
+    decision = session.scalar(
+        select(Decision).where(
+            Decision.id == decision_id,
+            Decision.organization_id == organization_id,
+        )
+    )
+    if decision is None:
+        raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
+    record = session.scalar(
+        select(RecommendationRecord)
+        .where(RecommendationRecord.decision_id == decision_id)
+        .order_by(RecommendationRecord.created_at.desc(), RecommendationRecord.id.desc())
+        .limit(1)
+    )
+    if record is None:
+        raise APIError(
+            404, "RECOMMENDATION_NOT_FOUND", "No recommendation was found."
+        )
+    return recommendation_to_schema(record)

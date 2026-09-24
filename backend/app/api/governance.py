@@ -12,6 +12,7 @@ from app.errors import APIError
 from app.schemas import (
     ActionExecuteRequest,
     ActionReceipt,
+    ActionReceiptStatus,
     Approval,
     ApprovalCheckRequest,
     ApprovalCreateRequest,
@@ -207,7 +208,9 @@ def run_authorized_action(
 @router.get("/action-receipts", response_model=CollectionPage[ActionReceipt])
 def read_action_receipts(
     decision_id: str | None = None,
+    approval_id: str | None = None,
     experiment_id: str | None = None,
+    status: ActionReceiptStatus | None = None,
     cursor: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(get_db),
@@ -217,7 +220,9 @@ def read_action_receipts(
         session,
         organization_id=settings.default_organization_id,
         decision_id=decision_id,
+        approval_id=approval_id,
         experiment_id=experiment_id,
+        status=status,
     )
     return _page(items, cursor, limit)
 

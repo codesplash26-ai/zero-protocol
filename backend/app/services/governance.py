@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.errors import APIError
@@ -37,7 +37,11 @@ from app.schemas import (
 from app.services.audit import append_audit
 from app.services.events import record_system_event
 from app.services.identifiers import new_id
-from app.services.state import lock_current_state, require_state_version
+from app.services.state import (
+    invalidate_approvals_for_version,
+    lock_current_state,
+    require_state_version,
+)
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -303,7 +307,9 @@ def list_action_receipts(
     *,
     organization_id: str,
     decision_id: str | None = None,
+    approval_id: str | None = None,
     experiment_id: str | None = None,
+    status: ActionReceiptStatus | None = None,
 ) -> list[ActionReceipt]:
     query = (
         select(ActionReceiptRecord)
@@ -312,8 +318,12 @@ def list_action_receipts(
     )
     if decision_id is not None:
         query = query.where(ActionReceiptRecord.decision_id == decision_id)
+    if approval_id is not None:
+        query = query.where(ActionReceiptRecord.approval_id == approval_id)
     if experiment_id is not None:
         query = query.where(ActionReceiptRecord.experiment_id == experiment_id)
+    if status is not None:
+        query = query.where(ActionReceiptRecord.status == status.value)
     records = session.scalars(
         query.order_by(ActionReceiptRecord.executed_at.desc(), ActionReceiptRecord.id.desc())
     ).all()
@@ -542,17 +552,11 @@ def execute_action(
         },
         occurred_at=now,
     )
-    session.execute(
-        update(ApprovalRecord)
-        .where(
-            ApprovalRecord.id != approval.id,
-            ApprovalRecord.decision_id.in_(
-                select(Decision.id).where(Decision.organization_id == organization_id)
-            ),
-            ApprovalRecord.state_version == current.state_version,
-            ApprovalRecord.decision.in_(["NOT_REQUIRED", "PENDING", "APPROVED"]),
-        )
-        .values(decision=ApprovalDecision.INVALIDATED.value)
+    invalidate_approvals_for_version(
+        session,
+        organization_id=organization_id,
+        state_version=current.state_version,
+        exclude_approval_id=approval.id,
     )
     decision = session.get(Decision, request.decision_id)
     append_audit(
