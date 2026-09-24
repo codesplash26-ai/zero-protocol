@@ -26,6 +26,7 @@ services:
       DATABASE_URL: postgresql+psycopg://zero_protocol:zero_protocol@postgres:5432/zero_protocol
       CORS_ORIGINS: http://localhost:5173
       DEFAULT_ORGANIZATION_ID: pulseboard
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-development-only}
     ports:
       - "8000:8000"
     healthcheck:
@@ -50,6 +51,7 @@ services:
 
     environment:
       BACKEND_URL: http://backend:8000
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-development-only}
 
     working_dir: /app
 

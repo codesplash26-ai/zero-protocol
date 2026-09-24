@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     )
     default_organization_id: str = "pulseboard"
     cors_origins: str = "http://localhost:5173"
+    internal_service_key: str = "local-development-only"
 
     @property
     def cors_origin_list(self) -> list[str]:

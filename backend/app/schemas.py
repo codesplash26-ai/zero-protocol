@@ -37,6 +37,33 @@ class CommitmentPriority(StrEnum):
     MEDIUM = "MEDIUM"
 
 
+class SolverStatus(StrEnum):
+    OPTIMAL = "OPTIMAL"
+    FEASIBLE = "FEASIBLE"
+    INFEASIBLE = "INFEASIBLE"
+    UNKNOWN = "UNKNOWN"
+
+
+class DecisionRunType(StrEnum):
+    INITIAL = "INITIAL"
+    MATERIAL_EVENT = "MATERIAL_EVENT"
+    APPROVAL_REPLAN_REQUEST = "APPROVAL_REPLAN_REQUEST"
+
+
+class DecisionRunStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class DecisionRunResult(StrEnum):
+    NEW_RECOMMENDATION = "NEW_RECOMMENDATION"
+    PRESERVED = "PRESERVED"
+    REPLANNED = "REPLANNED"
+    NO_ACTION = "NO_ACTION"
+
+
 class OrganizationState(StrictModel):
     organization_id: str
     organization_name: str
@@ -167,6 +194,87 @@ class ConsequenceResult(StrictModel):
     delay_days: int = Field(ge=0)
     affected_commitments: list[str]
     evaluated_state_version: int = Field(ge=1)
+
+
+class OptimizationResult(StrictModel):
+    status: SolverStatus
+    selected_experiment_ids: list[str]
+    feasible_combinations: list[list[str]]
+    objective_value: float | None
+    solver_run_id: str
+    evaluated_state_version: int = Field(ge=1)
+
+
+class OptimizationPersistRequest(OptimizationResult):
+    decision_id: str
+
+
+class Recommendation(StrictModel):
+    decision_id: str
+    recommended_strategy_id: str
+    current_executable_experiment_id: str | None
+    now: list[str]
+    next: list[str]
+    later: list[str]
+    defer: list[str]
+    reasoning_summary: str
+    requires_approval: bool
+    state_version: int = Field(ge=1)
+
+
+class RecommendationPersistRequest(StrictModel):
+    run_id: str
+    candidate_strategies: list[CandidateStrategy] = Field(min_length=1)
+    recommendation: Recommendation
+    tool_calls: list[str] = Field(default_factory=list)
+
+
+class DecisionCreateRequest(StrictModel):
+    goal_id: str
+    expected_state_version: int = Field(ge=1)
+
+
+class DecisionRun(StrictModel):
+    id: str
+    decision_id: str
+    run_type: DecisionRunType
+    status: DecisionRunStatus
+    result: DecisionRunResult | None
+    trigger_event_id: str | None
+    trigger_approval_id: str | None
+    input_state_version: int = Field(ge=1)
+    recommendation_state_version: int | None
+    error: dict | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class StrategyView(CandidateStrategy):
+    title: str
+    subtitle: str
+    evaluation_status: str
+    expected_impact: str | None
+    confidence_label: str | None
+    cost_usd: int
+    engineering_hours: int
+    traffic_required: int
+    risk: str
+    key_advantage: str
+    tradeoff_note: str | None
+    feasibility: FeasibilityResult
+    consequences: ConsequenceResult
+
+
+class DecisionWorkspace(StrictModel):
+    decision_id: str
+    goal: Goal
+    primary_constraint: str
+    strategies: list[StrategyView]
+    evidence: list[EvidenceItem]
+    recommendation: Recommendation | None
+    optimization_result: OptimizationResult | None
+    latest_run: DecisionRun
+    state_version: int = Field(ge=1)
 
 
 class GovernorStatus(StrictModel):

@@ -9,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
@@ -296,6 +297,132 @@ class AuditRecord(Base):
     event_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class Decision(Base):
+    __tablename__ = "decisions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    goal_id: Mapped[str] = mapped_column(
+        ForeignKey("goals.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class DecisionRun(Base):
+    __tablename__ = "decision_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "run_type IN ('INITIAL', 'MATERIAL_EVENT', 'APPROVAL_REPLAN_REQUEST')",
+            name="ck_decision_run_type_allowed",
+        ),
+        CheckConstraint(
+            "status IN ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED')",
+            name="ck_decision_run_status_allowed",
+        ),
+        CheckConstraint(
+            "result IS NULL OR result IN "
+            "('NEW_RECOMMENDATION', 'PRESERVED', 'REPLANNED', 'NO_ACTION')",
+            name="ck_decision_run_result_allowed",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    run_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    result: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    trigger_event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    trigger_approval_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_state_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    recommendation_state_version: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    error: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class CandidateStrategyRecord(Base):
+    __tablename__ = "candidate_strategies"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    experiment_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    sequence: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    conditional: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    condition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feasibility: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    consequences: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class SolverRun(Base):
+    __tablename__ = "solver_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('OPTIMAL', 'FEASIBLE', 'INFEASIBLE', 'UNKNOWN')",
+            name="ck_solver_status_allowed",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    selected_experiment_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    feasible_combinations: Mapped[list[list[str]]] = mapped_column(JSON, nullable=False)
+    objective_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evaluated_state_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class RecommendationRecord(Base):
+    __tablename__ = "recommendations"
+    __table_args__ = (
+        UniqueConstraint(
+            "decision_id", "state_version", name="uq_recommendation_decision_state"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(
+        ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    recommended_strategy_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"), nullable=False
+    )
+    current_executable_experiment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=True
+    )
+    now: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    next: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    later: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    defer: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reasoning_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    requires_approval: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
