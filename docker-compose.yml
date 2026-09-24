@@ -1,5 +1,42 @@
 services:
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: experiment-governor-postgres
+    environment:
+      POSTGRES_DB: zero_protocol
+      POSTGRES_USER: zero_protocol
+      POSTGRES_PASSWORD: zero_protocol
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zero_protocol -d zero_protocol"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: experiment-governor-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://zero_protocol:zero_protocol@postgres:5432/zero_protocol
+      CORS_ORIGINS: http://localhost:5173
+      DEFAULT_ORGANIZATION_ID: pulseboard
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   agent:
     build:
       context: ./agent
@@ -8,8 +45,19 @@ services:
     container_name: experiment-governor-agent
 
     env_file:
-      - .env
+      - path: .env
+        required: false
+
+    environment:
+      BACKEND_URL: http://backend:8000
 
     working_dir: /app
 
     command: python main.py
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
