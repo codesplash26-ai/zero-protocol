@@ -2,7 +2,7 @@ from schemas.models import (
     Experiment,
 )
 
-from tools.mock_backend import (
+from tools.experiment_rules import (
     detect_newly_unlocked_experiment_ids,
 )
 

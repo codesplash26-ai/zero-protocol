@@ -3,8 +3,10 @@ from schemas.models import (
     CandidateStrategySet,
     DecisionObjective,
     EvidencePlan,
+    Experiment,
     ExperimentOutcome,
     ExperimentStatus,
+    OrganizationState,
     Recommendation,
     StrategicEvaluationSet,
     StrategyAssessment,
@@ -17,11 +19,47 @@ from providers.fallback_provider import (
 from replan_graph import build_replan_graph
 
 from tools.mock_backend import (
+    calculate_consequences,
     check_feasibility,
     detect_newly_unlocked_experiment_ids,
     get_current_state,
     get_experiments,
 )
+
+
+class _FakeBackendClient:
+    def __init__(
+        self,
+        state: dict,
+    ):
+        self.organization_state = OrganizationState(
+            **state["organization_state"]
+        )
+        self.experiments = [
+            Experiment(**experiment)
+            for experiment
+            in state["experiments"]
+        ]
+
+    def check_feasibility(
+        self,
+        strategy: CandidateStrategy,
+    ):
+        return check_feasibility(
+            strategy,
+            self.organization_state,
+            self.experiments,
+        )
+
+    def calculate_consequences(
+        self,
+        strategy: CandidateStrategy,
+    ):
+        return calculate_consequences(
+            strategy,
+            self.organization_state,
+            self.experiments,
+        )
 
 
 def _base_replan_state(
@@ -107,7 +145,7 @@ def _fake_generate_structured(
         return StrategicEvaluationSet(
             assessments=[
                 StrategyAssessment(
-                    strategy_id="C-only",
+                    strategy_id="STRATEGY-C",
                     business_value=(
                         "Uses supplied experiment data."
                     ),
@@ -129,7 +167,7 @@ def _fake_generate_structured(
                 ),
                 StrategyAssessment(
                     strategy_id=
-                        "newly-unlocked-B",
+                        "STRATEGY-B",
                     business_value=(
                         "Uses the newly unlocked "
                         "dependent experiment."
@@ -160,7 +198,7 @@ def _fake_generate_structured(
         return Recommendation(
             decision_id="DEC-001",
             recommended_strategy_id=
-                "newly-unlocked-B",
+                "STRATEGY-B",
             now=[],
             next=[],
             later=[],
@@ -188,12 +226,31 @@ def test_replanning_successful_a_recommends_newly_unlocked_b(
         _fake_generate_structured,
     )
 
+    graph_state = _base_replan_state(
+        ExperimentOutcome.SUCCESS
+    )
+
+    backend_state = dict(graph_state)
+    backend_state["organization_state"] = dict(
+        graph_state[
+            "organization_state"
+        ]
+    )
+    backend_state["organization_state"][
+        "available_engineering_hours"
+    ] = 42
+
+    monkeypatch.setattr(
+        "nodes.evaluate_candidates.get_backend_client",
+        lambda: _FakeBackendClient(
+            backend_state
+        ),
+    )
+
     graph = build_replan_graph()
 
     result = graph.invoke(
-        _base_replan_state(
-            ExperimentOutcome.SUCCESS
-        )
+        graph_state
     )
 
     assert (
@@ -222,7 +279,7 @@ def test_replanning_successful_a_recommends_newly_unlocked_b(
         for item in
         result["feasibility_results"]
         if item["strategy_id"]
-        == "newly-unlocked-B"
+        == "STRATEGY-B"
     )
 
     assert (
@@ -253,7 +310,7 @@ def test_replanning_successful_a_recommends_newly_unlocked_b(
         for item in
         result["consequence_results"]
         if item["strategy_id"]
-        == "newly-unlocked-B"
+        == "STRATEGY-B"
     )
 
     assert (

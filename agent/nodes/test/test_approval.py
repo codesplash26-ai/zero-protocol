@@ -23,6 +23,11 @@ def test_b_requires_approval():
         remaining_engineering_hours=18,
         traffic_used=3500,
         remaining_traffic=6500,
+        delay_days=0,
+        affected_commitments=[],
+        evaluated_state_version=(
+            state.state_version
+        ),
     )
 
     result = (

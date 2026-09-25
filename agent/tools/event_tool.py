@@ -18,8 +18,6 @@ def apply_event(
             "available_engineering_hours"
         ] += event.engineering_delta_hours
 
-    data["state_version"] += 1
-
     return OrganizationState(**data)
 
 

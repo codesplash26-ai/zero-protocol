@@ -154,23 +154,19 @@ def read_overview(
     )
 
 
-@router.get("/experiments", response_model=CollectionPage[Experiment])
+@router.get("/experiments", response_model=list[Experiment])
 def read_experiments(
     status: ExperimentStatus | None = None,
     outcome: ExperimentOutcome | None = None,
-    cursor: str | None = None,
-    limit: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-) -> CollectionPage[Experiment]:
-    items = list_experiments(
+) -> list[Experiment]:
+    return list_experiments(
         session,
         settings.default_organization_id,
         status=status,
         outcome=outcome,
     )
-    page_items, next_cursor = _page(items, cursor, limit)
-    return CollectionPage(items=page_items, next_cursor=next_cursor)
 
 
 @router.get("/experiments/{experiment_id}", response_model=Experiment)

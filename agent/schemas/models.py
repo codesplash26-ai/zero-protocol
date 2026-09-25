@@ -120,6 +120,8 @@ class FeasibilityResult(BaseModel):
 
     violations: list[str] = Field(default_factory=list)
 
+    evaluated_state_version: int
+
 
 class ConsequenceResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -134,6 +136,10 @@ class ConsequenceResult(BaseModel):
 
     traffic_used: int
     remaining_traffic: int
+
+    delay_days: int
+    affected_commitments: list[str]
+    evaluated_state_version: int
 
 
 class OptimizationResult(BaseModel):

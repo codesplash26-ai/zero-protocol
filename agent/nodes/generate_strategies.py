@@ -1,6 +1,7 @@
 import json
 
 from schemas.models import (
+    CandidateStrategy,
     CandidateStrategySet,
 )
 
@@ -9,6 +10,10 @@ from providers.fallback_provider import (
 )
 
 from state import AgentState
+
+from tools.strategy_ids import (
+    normalize_candidate_strategies,
+)
 
 
 def generate_strategies_node(
@@ -65,8 +70,9 @@ Include conditional sequences when an
 experiment depends on evidence from an
 earlier experiment.
 
-Include a do-nothing strategy when
-appropriate.
+Do not include empty do-nothing strategies;
+backend evaluation requires at least one
+experiment ID.
 
 Do not declare a strategy feasible.
 
@@ -139,6 +145,26 @@ Generate candidate strategies.
 
     for strategy in result.strategies:
 
+        if not strategy.experiment_ids:
+            continue
+
+        strategy = strategy.model_copy(
+            update={
+                "sequence": (
+                    strategy.sequence
+                    if strategy.sequence
+                    else list(
+                        strategy.experiment_ids
+                    )
+                ),
+                "condition": (
+                    strategy.condition
+                    if strategy.conditional
+                    else None
+                ),
+            }
+        )
+
         strategy_ids = set(
             strategy.experiment_ids
         )
@@ -173,11 +199,11 @@ Generate candidate strategies.
             continue
 
         valid_strategies.append(
-            strategy.model_dump()
+            strategy
         )
 
     existing_strategy_experiment_ids = [
-        set(strategy["experiment_ids"])
+        set(strategy.experiment_ids)
         for strategy in valid_strategies
     ]
 
@@ -195,18 +221,17 @@ Generate candidate strategies.
             continue
 
         valid_strategies.append(
-            {
-                "id":
-                    f"newly-unlocked-{experiment_id}",
-                "experiment_ids": [
+            CandidateStrategy(
+                id=f"STRATEGY-{experiment_id}",
+                experiment_ids=[
                     experiment_id
                 ],
-                "sequence": [
+                sequence=[
                     experiment_id
                 ],
-                "conditional": False,
-                "condition": None,
-            }
+                conditional=False,
+                condition=None,
+            )
         )
 
         existing_strategy_experiment_ids.append(
@@ -229,18 +254,17 @@ Generate candidate strategies.
             continue
 
         valid_strategies.append(
-            {
-                "id":
-                    f"dependency-prerequisite-{experiment_id}",
-                "experiment_ids": [
+            CandidateStrategy(
+                id=f"STRATEGY-{experiment_id}",
+                experiment_ids=[
                     experiment_id
                 ],
-                "sequence": [
+                sequence=[
                     experiment_id
                 ],
-                "conditional": False,
-                "condition": None,
-            }
+                conditional=False,
+                condition=None,
+            )
         )
 
         existing_strategy_experiment_ids.append(
@@ -248,6 +272,13 @@ Generate candidate strategies.
         )
 
     return {
-        "candidate_strategies":
-            valid_strategies
+        "candidate_strategies": [
+            strategy.model_dump(
+                mode="json"
+            )
+            for strategy
+            in normalize_candidate_strategies(
+                valid_strategies
+            )
+        ]
     }

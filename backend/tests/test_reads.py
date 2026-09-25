@@ -1,3 +1,6 @@
+from app.schemas import Experiment
+
+
 def test_read_initial_state(client):
     response = client.get("/api/v1/state")
 
@@ -34,27 +37,26 @@ def test_experiments_are_canonical_and_sorted(client):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["next_cursor"] is None
-    assert [item["id"] for item in body["items"]] == ["A", "B", "C"]
-    assert body["items"][1]["dependencies"] == ["A"]
-    assert all(item["outcome"] == "PENDING" for item in body["items"])
-    assert all(item["cost_usd"] is not None for item in body["items"])
+    assert isinstance(body, list)
+    assert "items" not in body
+    assert "next_cursor" not in body
+    experiments = [Experiment.model_validate(item) for item in body]
+    assert [item.id for item in experiments] == ["A", "B", "C"]
+    assert body[1]["dependencies"] == ["A"]
+    assert all("outcome" in item for item in body)
+    assert all(item["outcome"] == "PENDING" for item in body)
+    assert all(item["cost_usd"] is not None for item in body)
 
 
-def test_experiment_filters_and_cursor_pagination(client):
-    first = client.get("/api/v1/experiments", params={"limit": 2})
-    second = client.get(
-        "/api/v1/experiments", params={"limit": 2, "cursor": "B"}
-    )
+def test_experiment_filters_return_direct_arrays(client):
     filtered = client.get(
         "/api/v1/experiments", params={"status": "PROPOSED", "outcome": "PENDING"}
     )
 
-    assert [item["id"] for item in first.json()["items"]] == ["A", "B"]
-    assert first.json()["next_cursor"] == "B"
-    assert [item["id"] for item in second.json()["items"]] == ["C"]
-    assert second.json()["next_cursor"] is None
-    assert len(filtered.json()["items"]) == 3
+    assert filtered.status_code == 200
+    body = filtered.json()
+    assert isinstance(body, list)
+    assert [item["id"] for item in body] == ["A", "B", "C"]
 
 
 def test_read_experiment_and_not_found_error(client):
@@ -81,7 +83,7 @@ def test_read_goal_commitment_and_evidence(client):
 
 
 def test_invalid_collection_cursor_uses_standard_error(client):
-    response = client.get("/api/v1/experiments", params={"cursor": "UNKNOWN"})
+    response = client.get("/api/v1/commitments", params={"cursor": "UNKNOWN"})
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_CURSOR"

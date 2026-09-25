@@ -1,12 +1,9 @@
-from schemas.models import (
-    CandidateStrategy,
-    Experiment,
-    OrganizationState,
+from tools.backend_client import (
+    get_backend_client,
 )
 
-from tools.mock_backend import (
-    check_feasibility,
-    calculate_consequences,
+from tools.strategy_ids import (
+    normalize_candidate_strategies,
 )
 
 from state import AgentState
@@ -19,53 +16,54 @@ def evaluate_candidates_node(
     feasibility_results = []
     consequence_results = []
 
-    # Convert current LangGraph state
-    # into Pydantic models
-    organization_state = OrganizationState(
-        **state["organization_state"]
+    client = get_backend_client()
+
+    candidate_strategies = (
+        normalize_candidate_strategies(
+            state["candidate_strategies"]
+        )
     )
 
-    experiments = [
-        Experiment(**experiment)
-        for experiment in state["experiments"]
-    ]
-
     # Evaluate every candidate strategy
-    for strategy_data in (
-        state["candidate_strategies"]
-    ):
+    for strategy in candidate_strategies:
 
-        strategy = CandidateStrategy(
-            **strategy_data
-        )
-
-        # Check feasibility using
-        # CURRENT LangGraph state
-        feasibility = check_feasibility(
-            strategy,
-            organization_state,
-            experiments,
+        feasibility = (
+            client.check_feasibility(
+                strategy
+            )
         )
 
         feasibility_results.append(
-            feasibility.model_dump()
+            feasibility.model_dump(
+                mode="json"
+            )
         )
 
         # Only calculate consequences
         # for feasible strategies
         if feasibility.feasible:
 
-            consequences = calculate_consequences(
-                strategy,
-                organization_state,
-                experiments,
+            consequences = (
+                client.calculate_consequences(
+                    strategy
+                )
             )
 
             consequence_results.append(
-                consequences.model_dump()
+                consequences.model_dump(
+                    mode="json"
+                )
             )
 
     return {
+        "candidate_strategies": [
+            strategy.model_dump(
+                mode="json"
+            )
+            for strategy
+            in candidate_strategies
+        ],
+
         "feasibility_results":
             feasibility_results,
 
