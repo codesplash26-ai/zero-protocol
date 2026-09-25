@@ -27,7 +27,6 @@ load_dotenv(env_path)
 # --------------------------------
 
 from graph import build_graph
-from replan_graph import build_replan_graph
 
 
 # =================================
@@ -55,106 +54,6 @@ print("\nINITIAL APPROVAL")
 
 print(
     initial_result[
-        "approval"
-    ]
-)
-
-
-# =================================
-# SIMULATE EXPERIMENT A SUCCESS
-# =================================
-
-updated_experiments = []
-
-for experiment in initial_result["experiments"]:
-
-    experiment = dict(experiment)
-
-    if experiment["id"] == "A":
-        experiment["status"] = "COMPLETED"
-        experiment["outcome"] = "SUCCESS"
-
-    updated_experiments.append(
-        experiment
-    )
-
-
-initial_result["experiments"] = (
-    updated_experiments
-)
-
-
-# =================================
-# SIMULATE SSO CAPACITY EVENT
-# =================================
-
-initial_result["event"] = {
-    "id": "EVENT-001",
-    "event_type": "CAPACITY_CHANGE",
-    "description": (
-        "The SSO vendor reports "
-        "a two-week integration block."
-    ),
-    "engineering_delta_hours": 18,
-}
-
-
-# =================================
-# REPLAN
-# =================================
-
-replan_graph = build_replan_graph()
-
-replanned = replan_graph.invoke(
-    initial_result
-)
-
-
-print("\n=== REPLANNING RESULT ===")
-
-
-print("\nUPDATED CAPACITY")
-
-print(
-    replanned[
-        "organization_state"
-    ][
-        "available_engineering_hours"
-    ]
-)
-
-
-print("\nMATERIALITY")
-
-print(
-    replanned[
-        "materiality_result"
-    ]
-)
-
-
-print("\nNEWLY UNLOCKED")
-
-print(
-    replanned[
-        "newly_unlocked_experiment_ids"
-    ]
-)
-
-
-print("\nNEW RECOMMENDATION")
-
-print(
-    replanned[
-        "recommendation"
-    ]
-)
-
-
-print("\nAPPROVAL")
-
-print(
-    replanned[
         "approval"
     ]
 )

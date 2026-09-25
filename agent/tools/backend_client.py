@@ -4,20 +4,33 @@ import os
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from schemas.models import (
+    ActionReceipt,
+    AuditRecord,
     CandidateStrategy,
     ConsequenceResult,
+    Event,
+    EventCreateRequest,
     Experiment,
     FeasibilityResult,
     Goal,
+    MaterialityResult,
+    OptimizationResult,
     OrganizationState,
+    Recommendation,
 )
-
 
 API_PREFIX = "/api/v1"
 DEFAULT_TIMEOUT_SECONDS = 5.0
+
+
+class _AuditTracePage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AuditRecord]
+    next_cursor: str | None
 
 
 class BackendAPIError(RuntimeError):
@@ -47,6 +60,7 @@ class BackendClient:
         base_url: str,
         *,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        internal_service_key: str | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         normalized_base_url = base_url.rstrip("/")
@@ -59,6 +73,7 @@ class BackendClient:
             )
 
         self.base_url = normalized_base_url
+        self.internal_service_key = internal_service_key
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=self.base_url,
@@ -71,7 +86,10 @@ class BackendClient:
             os.environ.get(
                 "BACKEND_BASE_URL",
                 "",
-            )
+            ),
+            internal_service_key=os.environ.get(
+                "INTERNAL_SERVICE_KEY"
+            ),
         )
 
     def close(self) -> None:
@@ -181,18 +199,237 @@ class BackendClient:
             request_id=request_id,
         )
 
+    def execute_action(
+        self,
+        *,
+        decision_id: str,
+        strategy_id: str,
+        experiment_id: str,
+        approval_id: str,
+        expected_state_version: int,
+        idempotency_key: str,
+    ) -> ActionReceipt:
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/actions/execute",
+                json={
+                    "decision_id": decision_id,
+                    "strategy_id": strategy_id,
+                    "experiment_id": experiment_id,
+                    "approval_id": approval_id,
+                    "expected_state_version": (
+                        expected_state_version
+                    ),
+                },
+                headers={
+                    "Idempotency-Key": idempotency_key,
+                },
+            )
+        )
+
+        return self._validate_response(
+            ActionReceipt,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def create_event(
+        self,
+        request: EventCreateRequest,
+        *,
+        idempotency_key: str,
+    ) -> Event:
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/events",
+                json=request.model_dump(
+                    mode="json"
+                ),
+                headers={
+                    "Idempotency-Key": idempotency_key,
+                },
+            )
+        )
+
+        return self._validate_response(
+            Event,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def check_materiality(
+        self,
+        event_id: str,
+        *,
+        idempotency_key: str,
+    ) -> MaterialityResult:
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                (
+                    f"{API_PREFIX}/events/"
+                    f"{event_id}/materiality"
+                ),
+                headers={
+                    "Idempotency-Key": idempotency_key,
+                },
+            )
+        )
+
+        return self._validate_response(
+            MaterialityResult,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def persist_recommendation(
+        self,
+        recommendation: Recommendation,
+        *,
+        idempotency_key: str,
+    ) -> Recommendation:
+        headers = {
+            "Idempotency-Key": idempotency_key,
+        }
+        if self.internal_service_key:
+            headers["X-Internal-Service-Key"] = (
+                self.internal_service_key
+            )
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/recommendations",
+                json=recommendation.model_dump(
+                    mode="json"
+                ),
+                headers=headers,
+            )
+        )
+
+        return self._validate_response(
+            Recommendation,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def persist_optimization_result(
+        self,
+        decision_id: str,
+        result: OptimizationResult,
+        *,
+        idempotency_key: str,
+    ) -> OptimizationResult:
+        headers = {
+            "Idempotency-Key": idempotency_key,
+        }
+        if self.internal_service_key:
+            headers["X-Internal-Service-Key"] = (
+                self.internal_service_key
+            )
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/optimization-results",
+                json={
+                    "decision_id": decision_id,
+                    "result": result.model_dump(
+                        mode="json"
+                    ),
+                },
+                headers=headers,
+            )
+        )
+
+        return self._validate_response(
+            OptimizationResult,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def get_recommendation(
+        self,
+        decision_id: str,
+    ) -> Recommendation:
+        payload, status_code, request_id = (
+            self._request_json(
+                "GET",
+                (
+                    f"{API_PREFIX}/recommendations/"
+                    f"{decision_id}"
+                ),
+            )
+        )
+
+        return self._validate_response(
+            Recommendation,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def get_audit(
+        self,
+        decision_id: str,
+    ) -> list[AuditRecord]:
+        records: list[AuditRecord] = []
+        cursor: str | None = None
+
+        while True:
+            params: dict[str, str | int] = {
+                "limit": 500,
+            }
+            if cursor is not None:
+                params["cursor"] = cursor
+
+            payload, status_code, request_id = (
+                self._request_json(
+                    "GET",
+                    f"{API_PREFIX}/audit/{decision_id}",
+                    params=params,
+                )
+            )
+            page = self._validate_response(
+                _AuditTracePage,
+                payload,
+                status_code=status_code,
+                request_id=request_id,
+            )
+            records.extend(page.items)
+
+            if page.next_cursor is None:
+                return records
+            if page.next_cursor == cursor:
+                raise BackendAPIError(
+                    "Backend returned a repeated audit cursor.",
+                    status_code=status_code,
+                    error_code="INVALID_RESPONSE",
+                    request_id=request_id,
+                )
+            cursor = page.next_cursor
+
     def _request_json(
         self,
         method: str,
         path: str,
         *,
         json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
     ) -> tuple[Any, int, str | None]:
         try:
             response = self._client.request(
                 method,
                 path,
                 json=json,
+                headers=headers,
+                params=params,
             )
 
         except httpx.TimeoutException as error:

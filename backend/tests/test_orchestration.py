@@ -24,36 +24,40 @@ def create_decision(client, key: str = "decision-initial"):
 
 def recommendation_payload(run: dict) -> dict:
     return {
-        "run_id": run["id"],
-        "candidate_strategies": [
-            {
-                "id": "STRATEGY-A-B",
-                "experiment_ids": ["A", "B"],
-                "sequence": ["A", "B"],
-                "conditional": True,
-                "condition": "Run B only after A completes with SUCCESS.",
-            },
-            {
-                "id": "STRATEGY-C",
-                "experiment_ids": ["C"],
-                "sequence": ["C"],
-                "conditional": False,
-                "condition": None,
-            },
-        ],
-        "recommendation": {
-            "decision_id": run["decision_id"],
-            "recommended_strategy_id": "STRATEGY-A-B",
-            "current_executable_experiment_id": "A",
-            "now": ["Run Experiment A"],
-            "next": ["Evaluate Experiment A result"],
-            "later": ["Consider Experiment B after A succeeds"],
-            "defer": ["C"],
-            "reasoning_summary": "A provides evidence before the larger B investment.",
-            "requires_approval": False,
-            "state_version": 1,
+        "decision_id": run["decision_id"],
+        "recommended_strategy_id": "STRATEGY-A-B",
+        "now": ["A"],
+        "next": ["B"],
+        "later": [],
+        "defer": ["C"],
+        "reasoning_summary": "A provides evidence before the larger B investment.",
+        "requires_approval": False,
+        "state_version": 1,
+    }
+
+
+def optimization_result_payload(
+    *,
+    solver_run_id: str = "SOLVER-001",
+    state_version: int = 1,
+) -> dict:
+    return {
+        "status": "FEASIBLE",
+        "selected_experiment_ids": [],
+        "feasible_combinations": [[], ["A"], ["C"]],
+        "objective_value": None,
+        "solver_run_id": solver_run_id,
+        "evaluated_state_version": state_version,
+    }
+
+
+def optimization_payload(run: dict, **result_overrides) -> dict:
+    return {
+        "decision_id": run["decision_id"],
+        "result": {
+            **optimization_result_payload(),
+            **result_overrides,
         },
-        "tool_calls": ["check_feasibility", "calculate_consequences"],
     }
 
 
@@ -113,15 +117,7 @@ def test_agent_can_persist_optimization_and_recommendation(client):
     run = create_decision(client).json()
     optimization = client.post(
         "/api/v1/optimization-results",
-        json={
-            "decision_id": run["decision_id"],
-            "status": "FEASIBLE",
-            "selected_experiment_ids": ["A"],
-            "feasible_combinations": [[], ["A"], ["C"]],
-            "objective_value": 85,
-            "solver_run_id": "SOLVER-001",
-            "evaluated_state_version": 1,
-        },
+        json=optimization_payload(run),
         headers={
             "X-Internal-Service-Key": "local-development-only",
             "Idempotency-Key": "solver-001",
@@ -137,9 +133,9 @@ def test_agent_can_persist_optimization_and_recommendation(client):
     )
 
     assert optimization.status_code == 201
-    assert optimization.json()["status"] == "FEASIBLE"
-    assert recommendation.status_code == 201
-    assert recommendation.json()["current_executable_experiment_id"] == "A"
+    assert optimization.json() == optimization_result_payload()
+    assert recommendation.status_code == 201, recommendation.text
+    assert recommendation.json() == recommendation_payload(run)
     assert client.get("/api/v1/state").json()["state_version"] == 1
 
     completed_run = client.get(f"/api/v1/decision-runs/{run['id']}")
@@ -155,16 +151,115 @@ def test_agent_can_persist_optimization_and_recommendation(client):
     assert body["state_version"] == 1
     assert body["recommendation"]["recommended_strategy_id"] == "STRATEGY-A-B"
     assert body["optimization_result"]["solver_run_id"] == "SOLVER-001"
-    assert len(body["strategies"]) == 2
+    assert len(body["strategies"]) == 1
     strategy_ab = next(item for item in body["strategies"] if item["id"] == "STRATEGY-A-B")
     assert strategy_ab["feasibility"]["feasible"] is False
     assert strategy_ab["evaluation_status"] == "INFEASIBLE"
 
 
+def test_optimization_contract_shape_and_idempotency(client):
+    run = create_decision(client).json()
+    payload = optimization_payload(run)
+    headers = {
+        "X-Internal-Service-Key": "local-development-only",
+        "Idempotency-Key": "optimization-contract",
+    }
+
+    first = client.post(
+        "/api/v1/optimization-results",
+        json=payload,
+        headers=headers,
+    )
+    replay = client.post(
+        "/api/v1/optimization-results",
+        json=payload,
+        headers=headers,
+    )
+    changed = client.post(
+        "/api/v1/optimization-results",
+        json=optimization_payload(
+            run,
+            feasible_combinations=[[], ["A"]],
+        ),
+        headers=headers,
+    )
+
+    assert first.status_code == 201, first.text
+    assert replay.status_code == 201
+    assert replay.json() == first.json() == optimization_result_payload()
+    assert set(first.json()) == {
+        "status",
+        "selected_experiment_ids",
+        "feasible_combinations",
+        "objective_value",
+        "solver_run_id",
+        "evaluated_state_version",
+    }
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+
+
+def test_optimization_rejects_flat_and_extra_public_shapes(client):
+    run = create_decision(client).json()
+    result = optimization_result_payload()
+    headers = {
+        "X-Internal-Service-Key": "local-development-only",
+        "Idempotency-Key": "legacy-optimization",
+    }
+
+    flat = client.post(
+        "/api/v1/optimization-results",
+        json={"decision_id": run["decision_id"], **result},
+        headers=headers,
+    )
+    extra = client.post(
+        "/api/v1/optimization-results",
+        json={
+            "decision_id": run["decision_id"],
+            "result": {**result, "decision_id": run["decision_id"]},
+        },
+        headers={**headers, "Idempotency-Key": "extra-optimization"},
+    )
+
+    assert flat.status_code == 422
+    assert extra.status_code == 422
+
+
+def test_optimization_rejects_authorizing_unknown_and_stale_state(client):
+    run = create_decision(client).json()
+    headers = {"X-Internal-Service-Key": "local-development-only"}
+
+    authorizing_unknown = client.post(
+        "/api/v1/optimization-results",
+        json=optimization_payload(
+            run,
+            status="UNKNOWN",
+            selected_experiment_ids=["A"],
+            feasible_combinations=[],
+        ),
+        headers={**headers, "Idempotency-Key": "unknown-optimization"},
+    )
+    stale = client.post(
+        "/api/v1/optimization-results",
+        json=optimization_payload(
+            run,
+            solver_run_id="SOLVER-STALE",
+            evaluated_state_version=2,
+        ),
+        headers={**headers, "Idempotency-Key": "stale-optimization"},
+    )
+
+    assert authorizing_unknown.status_code == 422
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "STATE_VERSION_CONFLICT"
+
+
 def test_recommendation_rejects_infeasible_current_action(client):
     run = create_decision(client).json()
     payload = recommendation_payload(run)
-    payload["recommendation"]["current_executable_experiment_id"] = "B"
+    payload["recommended_strategy_id"] = "STRATEGY-B"
+    payload["now"] = ["B"]
+    payload["next"] = []
     response = client.post(
         "/api/v1/recommendations",
         json=payload,
@@ -176,4 +271,101 @@ def test_recommendation_rejects_infeasible_current_action(client):
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "CURRENT_ACTION_INFEASIBLE"
+
+
+def test_recommendation_contract_shape_get_and_idempotency(client):
+    run = create_decision(client).json()
+    payload = recommendation_payload(run)
+    headers = {
+        "X-Internal-Service-Key": "local-development-only",
+        "Idempotency-Key": "recommendation-contract",
+    }
+
+
+    first = client.post("/api/v1/recommendations", json=payload, headers=headers)
+    replay = client.post("/api/v1/recommendations", json=payload, headers=headers)
+    changed = client.post(
+        "/api/v1/recommendations",
+        json={**payload, "reasoning_summary": "Changed reasoning."},
+        headers=headers,
+    )
+    retrieved = client.get(f"/api/v1/recommendations/{run['decision_id']}")
+
+    assert first.status_code == 201, first.text
+    assert replay.status_code == 201
+    assert replay.json() == first.json() == payload
+    assert retrieved.status_code == 200
+    assert retrieved.json() == payload
+    assert set(retrieved.json()) == {
+        "decision_id",
+        "recommended_strategy_id",
+        "now",
+        "next",
+        "later",
+        "defer",
+        "reasoning_summary",
+        "requires_approval",
+        "state_version",
+    }
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+
+
+def test_recommendation_rejects_legacy_public_fields(client):
+    run = create_decision(client).json()
+    payload = recommendation_payload(run)
+    headers = {
+        "X-Internal-Service-Key": "local-development-only",
+        "Idempotency-Key": "legacy-recommendation",
+    }
+
+    old_envelope = client.post(
+        "/api/v1/recommendations",
+        json={
+            "run_id": run["id"],
+            "candidate_strategies": [],
+            "recommendation": payload,
+            "tool_calls": [],
+        },
+        headers=headers,
+    )
+    extra_executable = client.post(
+        "/api/v1/recommendations",
+        json={**payload, "current_executable_experiment_id": "A"},
+        headers={**headers, "Idempotency-Key": "legacy-executable"},
+    )
+
+    assert old_envelope.status_code == 422
+    assert extra_executable.status_code == 422
+
+
+def test_recommendation_rejects_unknown_decision_and_stale_state(client):
+    run = create_decision(client).json()
+    payload = recommendation_payload(run)
+    headers = {"X-Internal-Service-Key": "local-development-only"}
+
+    unknown = client.post(
+        "/api/v1/recommendations",
+        json={**payload, "decision_id": "DEC-UNKNOWN"},
+        headers={**headers, "Idempotency-Key": "unknown-decision-rec"},
+    )
+    stale = client.post(
+        "/api/v1/recommendations",
+        json={**payload, "state_version": 2},
+        headers={**headers, "Idempotency-Key": "stale-recommendation"},
+    )
+    invalid_strategy = client.post(
+        "/api/v1/recommendations",
+        json={**payload, "recommended_strategy_id": "B"},
+        headers={**headers, "Idempotency-Key": "invalid-strategy-id"},
+    )
+    missing = client.get("/api/v1/recommendations/DEC-UNKNOWN")
+
+    assert unknown.status_code == 404
+    assert unknown.json()["error"]["code"] == "DECISION_NOT_FOUND"
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "DECISION_NOT_FOUND"
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "STATE_VERSION_CONFLICT"
+    assert invalid_strategy.status_code == 422
 

@@ -1,45 +1,47 @@
 from langgraph.graph import (
-    StateGraph,
-    START,
     END,
-)
-
-from state import AgentState
-
-from nodes.load_context import (
-    load_context_node,
-)
-
-from nodes.interpret_goal import (
-    interpret_goal_node,
-)
-
-from nodes.plan_evidence import (
-    plan_evidence_node,
-)
-
-from nodes.generate_strategies import (
-    generate_strategies_node,
-)
-
-from nodes.evaluate_candidates import (
-    evaluate_candidates_node,
-)
-
-from nodes.optimize import (
-    optimize_node,
-)
-from nodes.strategic_evaluation import (
-    strategic_evaluation_node,
-)
-
-from nodes.generate_recommendation import (
-    generate_recommendation_node,
+    START,
+    StateGraph,
 )
 
 from nodes.check_approval import (
     check_approval_node,
 )
+from nodes.evaluate_candidates import (
+    evaluate_candidates_node,
+)
+from nodes.generate_recommendation import (
+    generate_recommendation_node,
+)
+from nodes.generate_strategies import (
+    generate_strategies_node,
+)
+from nodes.interpret_goal import (
+    interpret_goal_node,
+)
+from nodes.load_context import (
+    load_context_node,
+)
+from nodes.optimize import (
+    optimize_node,
+)
+from nodes.persist_optimization import (
+    persist_optimization_node,
+)
+from nodes.persist_recommendation import (
+    persist_recommendation_node,
+)
+from nodes.plan_evidence import (
+    plan_evidence_node,
+)
+from nodes.retrieve_audit import (
+    retrieve_audit_node,
+)
+from nodes.strategic_evaluation import (
+    strategic_evaluation_node,
+)
+from state import AgentState
+
 
 def build_graph():
 
@@ -75,6 +77,11 @@ def build_graph():
     workflow.add_node(
         "optimize",
         optimize_node,
+    )
+
+    workflow.add_node(
+        "persist_optimization",
+        persist_optimization_node,
     )
 
     workflow.add_edge(
@@ -122,8 +129,21 @@ def build_graph():
         "check_approval",
         check_approval_node,
     )
+    workflow.add_node(
+        "persist_recommendation",
+        persist_recommendation_node,
+    )
+    workflow.add_node(
+        "retrieve_audit",
+        retrieve_audit_node,
+    )
     workflow.add_edge(
     "optimize",
+    "persist_optimization",
+    )
+
+    workflow.add_edge(
+    "persist_optimization",
     "strategic_evaluation",
     )
 
@@ -139,6 +159,16 @@ def build_graph():
 
     workflow.add_edge(
         "check_approval",
+        "persist_recommendation",
+    )
+
+    workflow.add_edge(
+        "persist_recommendation",
+        "retrieve_audit",
+    )
+
+    workflow.add_edge(
+        "retrieve_audit",
         END,
     )
     return workflow.compile()

@@ -1,42 +1,43 @@
 from langgraph.graph import (
-    StateGraph,
-    START,
     END,
-)
-
-from state import AgentState
-
-from nodes.handle_event import (
-    handle_event_node,
-)
-
-from nodes.detect_newly_unlocked import (
-    detect_newly_unlocked_node,
-)
-
-from nodes.generate_strategies import (
-    generate_strategies_node,
-)
-
-from nodes.evaluate_candidates import (
-    evaluate_candidates_node,
-)
-
-from nodes.optimize import (
-    optimize_node,
-)
-
-from nodes.strategic_evaluation import (
-    strategic_evaluation_node,
-)
-
-from nodes.generate_recommendation import (
-    generate_recommendation_node,
+    START,
+    StateGraph,
 )
 
 from nodes.check_approval import (
     check_approval_node,
 )
+from nodes.detect_newly_unlocked import (
+    detect_newly_unlocked_node,
+)
+from nodes.evaluate_candidates import (
+    evaluate_candidates_node,
+)
+from nodes.generate_recommendation import (
+    generate_recommendation_node,
+)
+from nodes.generate_strategies import (
+    generate_strategies_node,
+)
+from nodes.handle_event import (
+    handle_event_node,
+)
+from nodes.optimize import (
+    optimize_node,
+)
+from nodes.persist_optimization import (
+    persist_optimization_node,
+)
+from nodes.persist_recommendation import (
+    persist_recommendation_node,
+)
+from nodes.retrieve_audit import (
+    retrieve_audit_node,
+)
+from nodes.strategic_evaluation import (
+    strategic_evaluation_node,
+)
+from state import AgentState
 
 
 def materiality_router(
@@ -89,6 +90,11 @@ def build_replan_graph():
     )
 
     workflow.add_node(
+        "persist_optimization",
+        persist_optimization_node,
+    )
+
+    workflow.add_node(
         "strategic_evaluation",
         strategic_evaluation_node,
     )
@@ -101,6 +107,14 @@ def build_replan_graph():
     workflow.add_node(
         "check_approval",
         check_approval_node,
+    )
+    workflow.add_node(
+        "persist_recommendation",
+        persist_recommendation_node,
+    )
+    workflow.add_node(
+        "retrieve_audit",
+        retrieve_audit_node,
     )
 
     workflow.add_edge(
@@ -137,6 +151,11 @@ def build_replan_graph():
 
     workflow.add_edge(
         "optimize",
+        "persist_optimization",
+    )
+
+    workflow.add_edge(
+        "persist_optimization",
         "strategic_evaluation",
     )
 
@@ -152,6 +171,16 @@ def build_replan_graph():
 
     workflow.add_edge(
         "check_approval",
+        "persist_recommendation",
+    )
+
+    workflow.add_edge(
+        "persist_recommendation",
+        "retrieve_audit",
+    )
+
+    workflow.add_edge(
+        "retrieve_audit",
         END,
     )
 

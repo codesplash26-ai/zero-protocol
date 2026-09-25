@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -245,15 +245,33 @@ class OptimizationResult(StrictModel):
     solver_run_id: str
     evaluated_state_version: int = Field(ge=1)
 
+    @field_validator("solver_run_id")
+    @classmethod
+    def validate_solver_run_id(cls, value: str) -> str:
+        if not value.startswith("SOLVER-") or value == "SOLVER-":
+            raise ValueError("solver_run_id must be an opaque SOLVER-* identifier")
+        return value
 
-class OptimizationPersistRequest(OptimizationResult):
+    @model_validator(mode="after")
+    def validate_non_authorizing_statuses(self) -> OptimizationResult:
+        if (
+            self.status in {SolverStatus.INFEASIBLE, SolverStatus.UNKNOWN}
+            and self.selected_experiment_ids
+        ):
+            raise ValueError(f"{self.status.value} cannot select experiments")
+        if self.status is SolverStatus.INFEASIBLE and self.feasible_combinations:
+            raise ValueError("INFEASIBLE cannot contain feasible combinations")
+        return self
+
+
+class OptimizationPersistRequest(StrictModel):
     decision_id: str
+    result: OptimizationResult
 
 
 class Recommendation(StrictModel):
     decision_id: str
     recommended_strategy_id: str
-    current_executable_experiment_id: str | None
     now: list[str]
     next: list[str]
     later: list[str]
@@ -262,12 +280,12 @@ class Recommendation(StrictModel):
     requires_approval: bool
     state_version: int = Field(ge=1)
 
-
-class RecommendationPersistRequest(StrictModel):
-    run_id: str
-    candidate_strategies: list[CandidateStrategy] = Field(min_length=1)
-    recommendation: Recommendation
-    tool_calls: list[str] = Field(default_factory=list)
+    @field_validator("recommended_strategy_id")
+    @classmethod
+    def validate_strategy_id(cls, value: str) -> str:
+        if not value.startswith("STRATEGY-"):
+            raise ValueError("recommended_strategy_id must start with STRATEGY-")
+        return value
 
 
 class Approval(StrictModel):
@@ -293,24 +311,26 @@ class Approval(StrictModel):
 class ApprovalCheckRequest(StrictModel):
     decision_id: str
     strategy_id: str
-    experiment_id: str
-    action_type: ActionType
+    experiment_ids: list[str] = Field(min_length=1)
     expected_state_version: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_unique_experiments(self) -> ApprovalCheckRequest:
+        if len(set(self.experiment_ids)) != len(self.experiment_ids):
+            raise ValueError("experiment_ids must be unique")
+        return self
 
 
 class ApprovalPolicyResult(StrictModel):
     approval_required: bool
-    decision: ApprovalDecision
     reason: str
     threshold_usd: int = Field(ge=0)
-    authorized_cost_usd: int = Field(ge=0)
-    authorized_engineering_hours: int = Field(ge=0)
-    authorized_traffic: int = Field(ge=0)
+    evaluated_cost_usd: int = Field(ge=0)
     state_version: int = Field(ge=1)
 
 
 class ApprovalCreateRequest(ApprovalCheckRequest):
-    requested_by: str = Field(min_length=1)
+    pass
 
 
 class ApprovalDecisionRequest(StrictModel):
@@ -330,14 +350,12 @@ class ActionExecuteRequest(StrictModel):
     decision_id: str
     strategy_id: str
     experiment_id: str
-    action_type: ActionType
     approval_id: str
     expected_state_version: int = Field(ge=1)
 
 
 class ActionReceipt(StrictModel):
     id: str
-    approval_id: str
     decision_id: str
     strategy_id: str
     experiment_id: str
@@ -350,8 +368,37 @@ class ActionReceipt(StrictModel):
     executed_at: datetime
     idempotency_key: str
 
+    @field_validator("executed_at")
+    @classmethod
+    def validate_executed_at_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError("executed_at must be a UTC timestamp")
+        return value.astimezone(UTC)
+
 
 class AuditRecord(StrictModel):
+    id: str
+    decision_id: str
+    goal_id: str
+    state_version: int = Field(ge=1)
+    tool_calls: list[str]
+    candidate_strategy_ids: list[str]
+    optimization_status: SolverStatus | None
+    recommended_strategy_id: str | None
+    approval_id: str | None
+    action_receipt_id: str | None
+    event_ids: list[str]
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def validate_created_at_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError("created_at must be a UTC timestamp")
+        return value.astimezone(UTC)
+
+
+class AuditActivity(StrictModel):
     id: str
     decision_id: str | None
     goal_id: str | None
@@ -381,6 +428,13 @@ class Event(StrictModel):
     occurred_at: datetime
     state_version: int = Field(ge=1)
 
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError("occurred_at must be a UTC timestamp")
+        return value.astimezone(UTC)
+
 
 class EventCreateRequest(StrictModel):
     event_type: EventType
@@ -393,6 +447,13 @@ class EventCreateRequest(StrictModel):
     source: str = Field(min_length=1)
     occurred_at: datetime
     expected_state_version: int = Field(ge=1)
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at_is_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError("occurred_at must be a UTC timestamp")
+        return value.astimezone(UTC)
 
 
 class MaterialityResult(StrictModel):

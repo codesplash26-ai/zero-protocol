@@ -1,7 +1,7 @@
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ExperimentStatus(str, Enum):
@@ -16,6 +16,14 @@ class ExperimentOutcome(str, Enum):
     PENDING = "PENDING"
     SUCCESS = "SUCCESS"
     FAILURE = "FAILURE"
+
+
+class EventType(str, Enum):
+    EXPERIMENT_RESULT = "EXPERIMENT_RESULT"
+    CAPACITY_CHANGE = "CAPACITY_CHANGE"
+    BUDGET_CHANGE = "BUDGET_CHANGE"
+    DEPENDENCY_CHANGE = "DEPENDENCY_CHANGE"
+    COMMITMENT_CHANGE = "COMMITMENT_CHANGE"
 
 
 class SolverStatus(str, Enum):
@@ -66,7 +74,7 @@ class Experiment(BaseModel):
     status: ExperimentStatus = ExperimentStatus.PROPOSED
     outcome: ExperimentOutcome = ExperimentOutcome.PENDING
 
-    decision_role: Optional[str] = None
+    decision_role: str | None = None
 
 
 def dependency_satisfied_by_completed_success(
@@ -87,7 +95,7 @@ class EvidenceItem(BaseModel):
     id: str
     source: str
     content: str
-    quality: Optional[str] = None
+    quality: str | None = None
 
 
 class CandidateStrategy(BaseModel):
@@ -99,7 +107,7 @@ class CandidateStrategy(BaseModel):
     sequence: list[str] = Field(default_factory=list)
 
     conditional: bool = False
-    condition: Optional[str] = None
+    condition: str | None = None
 
 class CandidateStrategySet(BaseModel):
     model_config = ConfigDict(
@@ -146,10 +154,64 @@ class OptimizationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: SolverStatus
+    selected_experiment_ids: list[str]
+    feasible_combinations: list[list[str]]
+    objective_value: float | int | None
+    solver_run_id: str
+    evaluated_state_version: int = Field(ge=1)
 
-    feasible_combinations: list[list[str]] = Field(
-        default_factory=list
-    )
+    @field_validator("solver_run_id")
+    @classmethod
+    def validate_solver_run_id(cls, value: str) -> str:
+        if not value.startswith("SOLVER-") or value == "SOLVER-":
+            raise ValueError(
+                "solver_run_id must be an opaque SOLVER-* identifier"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def validate_non_authorizing_statuses(self) -> "OptimizationResult":
+        if (
+            self.status in {SolverStatus.INFEASIBLE, SolverStatus.UNKNOWN}
+            and self.selected_experiment_ids
+        ):
+            raise ValueError(
+                f"{self.status.value} cannot select experiments"
+            )
+        if self.status is SolverStatus.INFEASIBLE and self.feasible_combinations:
+            raise ValueError(
+                "INFEASIBLE cannot contain feasible combinations"
+            )
+        return self
+
+
+class AuditRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    decision_id: str
+    goal_id: str
+    state_version: int = Field(ge=1)
+    tool_calls: list[str]
+    candidate_strategy_ids: list[str]
+    optimization_status: SolverStatus | None
+    recommended_strategy_id: str | None
+    approval_id: str | None
+    action_receipt_id: str | None
+    event_ids: list[str]
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def validate_created_at_is_utc(
+        cls,
+        value: datetime,
+    ) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError(
+                "created_at must be a UTC timestamp"
+            )
+        return value.astimezone(UTC)
 
 
 class Recommendation(BaseModel):
@@ -178,15 +240,70 @@ class Recommendation(BaseModel):
     reasoning_summary: str
 
     requires_approval: bool = False
+    state_version: int = Field(ge=1)
+
+    @field_validator("recommended_strategy_id")
+    @classmethod
+    def validate_strategy_id(cls, value: str) -> str:
+        if not value.startswith("STRATEGY-"):
+            raise ValueError(
+                "recommended_strategy_id must start with STRATEGY-"
+            )
+        return value
 
 class Event(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    event_type: str
+    event_type: EventType
     description: str
-
     engineering_delta_hours: int = 0
+    budget_delta_usd: int = 0
+    experiment_id: str | None = None
+    experiment_outcome: ExperimentOutcome | None = None
+    commitment_id: str | None = None
+    source: str
+    occurred_at: datetime
+    state_version: int = Field(ge=1)
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at_is_utc(
+        cls,
+        value: datetime,
+    ) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError(
+                "occurred_at must be a UTC timestamp"
+            )
+        return value.astimezone(UTC)
+
+
+class EventCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: EventType
+    description: str = Field(min_length=1)
+    engineering_delta_hours: int = 0
+    budget_delta_usd: int = 0
+    experiment_id: str | None = None
+    experiment_outcome: ExperimentOutcome | None = None
+    commitment_id: str | None = None
+    source: str = Field(min_length=1)
+    occurred_at: datetime
+    expected_state_version: int = Field(ge=1)
+
+    @field_validator("occurred_at")
+    @classmethod
+    def validate_occurred_at_is_utc(
+        cls,
+        value: datetime,
+    ) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError(
+                "occurred_at must be a UTC timestamp"
+            )
+        return value.astimezone(UTC)
 
 class DecisionObjective(BaseModel):
     model_config = ConfigDict(
@@ -253,6 +370,39 @@ class Approval(BaseModel):
 
     state_version: int = 1
 
+
+class ActionReceipt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    decision_id: str
+    strategy_id: str
+    experiment_id: str
+
+    previous_status: ExperimentStatus
+    new_status: ExperimentStatus
+
+    budget_reserved_usd: int
+    engineering_reserved_hours: int
+
+    status: str
+    state_version: int
+    executed_at: datetime
+    idempotency_key: str
+
+    @field_validator("executed_at")
+    @classmethod
+    def validate_executed_at_is_utc(
+        cls,
+        value: datetime,
+    ) -> datetime:
+        if value.tzinfo is None or value.utcoffset() != timedelta(0):
+            raise ValueError(
+                "executed_at must be a UTC timestamp"
+            )
+        return value.astimezone(UTC)
+
+
 class MaterialityResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -267,3 +417,5 @@ class MaterialityResult(BaseModel):
     reasons: list[str] = Field(
         default_factory=list
     )
+
+    state_version: int = Field(ge=1)

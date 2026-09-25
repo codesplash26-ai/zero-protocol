@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.errors import APIError
-from app.schemas import AuditRecord, CollectionPage, Recommendation
+from app.schemas import AuditActivity, AuditRecord, CollectionPage, Recommendation
 from app.services.history import get_decision_trace, list_audit_records
 from app.services.orchestration import get_latest_recommendation
 
@@ -44,7 +44,7 @@ def read_latest_recommendation(
     )
 
 
-@router.get("/audit", response_model=CollectionPage[AuditRecord])
+@router.get("/audit", response_model=CollectionPage[AuditActivity])
 def read_audit_records(
     decision_id: str | None = None,
     state_version: int | None = Query(default=None, ge=1),
@@ -54,7 +54,7 @@ def read_audit_records(
     limit: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-) -> CollectionPage[AuditRecord]:
+) -> CollectionPage[AuditActivity]:
     items = list_audit_records(
         session,
         organization_id=settings.default_organization_id,

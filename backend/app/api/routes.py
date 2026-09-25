@@ -41,7 +41,7 @@ from app.schemas import (
     OverviewSnapshot,
 )
 from app.services.evaluation import calculate_consequences, check_feasibility
-from app.services.history import audit_to_schema
+from app.services.history import audit_to_activity
 from app.services.orchestration import recommendation_to_schema
 
 router = APIRouter()
@@ -149,7 +149,8 @@ def read_overview(
         ),
         pending_approval_count=pending_approvals or 0,
         recent_activity=[
-            audit_to_schema(record).model_dump(mode="json") for record in recent_records
+            audit_to_activity(record).model_dump(mode="json")
+            for record in recent_records
         ],
     )
 

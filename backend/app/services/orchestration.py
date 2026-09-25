@@ -25,7 +25,6 @@ from app.repositories import (
     list_experiments,
 )
 from app.schemas import (
-    ApprovalDecision,
     CandidateStrategy,
     ConsequenceCalculateRequest,
     ConsequenceResult,
@@ -38,7 +37,6 @@ from app.schemas import (
     OptimizationPersistRequest,
     OptimizationResult,
     Recommendation,
-    RecommendationPersistRequest,
     ReplanRequest,
     StrategyView,
 )
@@ -69,7 +67,6 @@ def recommendation_to_schema(record: RecommendationRecord) -> Recommendation:
     return Recommendation(
         decision_id=record.decision_id,
         recommended_strategy_id=record.recommended_strategy_id,
-        current_executable_experiment_id=record.current_executable_experiment_id,
         now=record.now,
         next=record.next,
         later=record.later,
@@ -291,11 +288,12 @@ def persist_optimization(
     if decision is None or decision.organization_id != organization_id:
         raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
     current = lock_current_state(session, organization_id)
-    require_state_version(current, request.evaluated_state_version)
+    result = request.result
+    require_state_version(current, result.evaluated_state_version)
 
     experiment_ids = {item.id for item in list_experiments(session, organization_id)}
-    supplied = set(request.selected_experiment_ids)
-    supplied.update(item for combo in request.feasible_combinations for item in combo)
+    supplied = set(result.selected_experiment_ids)
+    supplied.update(item for combo in result.feasible_combinations for item in combo)
     missing = sorted(supplied - experiment_ids)
     if missing:
         raise APIError(
@@ -304,7 +302,7 @@ def persist_optimization(
             "The optimization result references unknown experiments.",
             {"experiment_ids": missing},
         )
-    if session.get(SolverRun, request.solver_run_id) is not None:
+    if session.get(SolverRun, result.solver_run_id) is not None:
         raise APIError(
             409,
             "SOLVER_RUN_EXISTS",
@@ -312,13 +310,13 @@ def persist_optimization(
         )
 
     record = SolverRun(
-        id=request.solver_run_id,
+        id=result.solver_run_id,
         decision_id=request.decision_id,
-        status=request.status.value,
-        selected_experiment_ids=request.selected_experiment_ids,
-        feasible_combinations=request.feasible_combinations,
-        objective_value=request.objective_value,
-        evaluated_state_version=request.evaluated_state_version,
+        status=result.status.value,
+        selected_experiment_ids=result.selected_experiment_ids,
+        feasible_combinations=result.feasible_combinations,
+        objective_value=result.objective_value,
+        evaluated_state_version=result.evaluated_state_version,
     )
     session.add(record)
     append_audit(
@@ -327,7 +325,7 @@ def persist_optimization(
         decision_id=request.decision_id,
         goal_id=decision.goal_id,
         state_version=current.state_version,
-        optimization_status=request.status.value,
+        optimization_status=result.status.value,
         title="Optimization result recorded",
         summary=f"Recorded solver run {record.id} with status {record.status}.",
     )
@@ -335,99 +333,81 @@ def persist_optimization(
     return optimization_to_schema(record)
 
 
-def _validate_recommendation(
-    request: RecommendationPersistRequest,
-    run: DecisionRunRecord,
-) -> CandidateStrategy:
-    recommendation = request.recommendation
-    if recommendation.decision_id != run.decision_id:
-        raise APIError(
-            409,
-            "RECOMMENDATION_SCOPE_MISMATCH",
-            "The recommendation does not belong to the decision run.",
-        )
-    strategies = {item.id: item for item in request.candidate_strategies}
-    selected = strategies.get(recommendation.recommended_strategy_id)
-    if selected is None:
-        raise APIError(
-            400,
-            "INVALID_RECOMMENDATION",
-            "The recommended strategy is not in candidate_strategies.",
-        )
-    executable = recommendation.current_executable_experiment_id
-    if executable is not None and executable not in selected.experiment_ids:
-        raise APIError(
-            400,
-            "INVALID_RECOMMENDATION",
-            "The current executable experiment is not in the recommended strategy.",
-        )
-    if len(strategies) != len(request.candidate_strategies):
-        raise APIError(
-            400,
-            "INVALID_RECOMMENDATION",
-            "Candidate strategy identifiers must be unique.",
-        )
-    return selected
-
-
 def persist_recommendation(
     session: Session,
     *,
     organization_id: str,
-    request: RecommendationPersistRequest,
+    request: Recommendation,
 ) -> Recommendation:
-    run = session.get(DecisionRunRecord, request.run_id)
-    if run is None:
-        raise APIError(404, "DECISION_RUN_NOT_FOUND", "The decision run was not found.")
-    if run.status not in {DecisionRunStatus.QUEUED.value, DecisionRunStatus.RUNNING.value}:
-        raise APIError(409, "DECISION_RUN_CLOSED", "The decision run is already closed.")
-    decision = session.get(Decision, run.decision_id)
+    decision = session.get(Decision, request.decision_id)
     if decision is None or decision.organization_id != organization_id:
         raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
 
     current = lock_current_state(session, organization_id)
-    require_state_version(current, request.recommendation.state_version)
-    if run.input_state_version != current.state_version:
+    require_state_version(current, request.state_version)
+
+    all_plan_ids = list(dict.fromkeys(request.now + request.next + request.later + request.defer))
+    known_ids = {item.id for item in list_experiments(session, organization_id)}
+    missing = sorted(set(all_plan_ids) - known_ids)
+    if missing:
+        raise APIError(
+            404,
+            "EXPERIMENT_NOT_FOUND",
+            "The recommendation references unknown experiments.",
+            {"experiment_ids": missing},
+        )
+
+    selected_ids = list(dict.fromkeys(request.now + request.next))
+    if not selected_ids:
+        raise APIError(
+            400,
+            "INVALID_RECOMMENDATION",
+            "A recommendation must include at least one now or next experiment.",
+        )
+    selected = CandidateStrategy(
+        id=request.recommended_strategy_id,
+        experiment_ids=selected_ids,
+        sequence=selected_ids,
+        conditional=False,
+        condition=None,
+    )
+    feasibility = check_feasibility(session, organization_id, selected)
+    consequences = calculate_consequences(
+        session,
+        organization_id,
+        ConsequenceCalculateRequest(
+            strategy_id=selected.id,
+            experiment_ids=selected.experiment_ids,
+        ),
+    )
+    existing = session.get(CandidateStrategyRecord, selected.id)
+    if existing is not None and existing.decision_id != decision.id:
         raise APIError(
             409,
-            "STATE_VERSION_CONFLICT",
-            "The decision run evaluated a stale organization state.",
-            {"expected": run.input_state_version, "actual": current.state_version},
+            "STRATEGY_ID_CONFLICT",
+            "The strategy identifier belongs to another decision.",
         )
-    selected = _validate_recommendation(request, run)
-    recommendation = request.recommendation
-
-    for strategy in request.candidate_strategies:
-        existing = session.get(CandidateStrategyRecord, strategy.id)
-        if existing is not None and existing.decision_id != decision.id:
-            raise APIError(
-                409,
-                "STRATEGY_ID_CONFLICT",
-                "A candidate strategy identifier belongs to another decision.",
-            )
-        feasibility = check_feasibility(session, organization_id, strategy)
-        consequences = calculate_consequences(
-            session,
-            organization_id,
-            ConsequenceCalculateRequest(
-                strategy_id=strategy.id, experiment_ids=strategy.experiment_ids
-            ),
+    if existing is not None and existing.experiment_ids != selected.experiment_ids:
+        raise APIError(
+            409,
+            "STRATEGY_SCOPE_CONFLICT",
+            "The strategy identifier already has different experiment membership.",
         )
-        if existing is None:
-            existing = CandidateStrategyRecord(id=strategy.id, decision_id=decision.id)
-            session.add(existing)
-        existing.experiment_ids = strategy.experiment_ids
-        existing.sequence = strategy.sequence
-        existing.conditional = strategy.conditional
-        existing.condition = strategy.condition
-        existing.feasibility = feasibility.model_dump(mode="json")
-        existing.consequences = consequences.model_dump(mode="json")
+    if existing is None:
+        existing = CandidateStrategyRecord(id=selected.id, decision_id=decision.id)
+        session.add(existing)
+    existing.experiment_ids = selected.experiment_ids
+    existing.sequence = selected.sequence
+    existing.conditional = selected.conditional
+    existing.condition = selected.condition
+    existing.feasibility = feasibility.model_dump(mode="json")
+    existing.consequences = consequences.model_dump(mode="json")
 
     # Candidate strategies must exist before recommendation and approval foreign keys
     # can be persisted, especially when PostgreSQL enforces them immediately.
     session.flush()
 
-    executable = recommendation.current_executable_experiment_id
+    executable = request.now[0] if request.now else None
     if executable is not None:
         executable_result = check_feasibility(
             session,
@@ -444,49 +424,60 @@ def persist_recommendation(
             raise APIError(
                 400,
                 "CURRENT_ACTION_INFEASIBLE",
-                "The recommendation's current executable experiment is infeasible.",
+                "The recommendation's current experiment is infeasible.",
                 {"violations": executable_result.violations},
             )
 
     record = RecommendationRecord(
         id=new_id("REC"),
         decision_id=decision.id,
-        recommended_strategy_id=recommendation.recommended_strategy_id,
-        current_executable_experiment_id=recommendation.current_executable_experiment_id,
-        now=recommendation.now,
-        next=recommendation.next,
-        later=recommendation.later,
-        defer=recommendation.defer,
-        reasoning_summary=recommendation.reasoning_summary,
-        # The backend policy is authoritative; the agent-provided flag is advisory only.
-        requires_approval=False,
-        state_version=recommendation.state_version,
+        recommended_strategy_id=request.recommended_strategy_id,
+        current_executable_experiment_id=executable,
+        now=request.now,
+        next=request.next,
+        later=request.later,
+        defer=request.defer,
+        reasoning_summary=request.reasoning_summary,
+        requires_approval=request.requires_approval,
+        state_version=request.state_version,
     )
     session.add(record)
     session.flush()
     from app.services.governance import ensure_approval_for_recommendation
 
-    approval = ensure_approval_for_recommendation(
+    ensure_approval_for_recommendation(
         session,
         organization_id=organization_id,
         recommendation=record,
     )
-    record.requires_approval = bool(approval and approval.decision == ApprovalDecision.PENDING)
-    run.status = DecisionRunStatus.SUCCEEDED.value
-    run.result = DecisionRunResult.NEW_RECOMMENDATION.value
-    run.recommendation_state_version = recommendation.state_version
-    run.completed_at = datetime.now(UTC)
+    run = session.scalar(
+        select(DecisionRunRecord)
+        .where(
+            DecisionRunRecord.decision_id == decision.id,
+            DecisionRunRecord.input_state_version == request.state_version,
+            DecisionRunRecord.status.in_(
+                [DecisionRunStatus.QUEUED.value, DecisionRunStatus.RUNNING.value]
+            ),
+        )
+        .order_by(DecisionRunRecord.created_at.desc())
+        .limit(1)
+    )
+    if run is not None:
+        run.status = DecisionRunStatus.SUCCEEDED.value
+        run.result = DecisionRunResult.NEW_RECOMMENDATION.value
+        run.recommendation_state_version = request.state_version
+        run.completed_at = datetime.now(UTC)
     append_audit(
         session,
         organization_id=organization_id,
         decision_id=decision.id,
         goal_id=decision.goal_id,
         state_version=current.state_version,
-        tool_calls=request.tool_calls,
-        candidate_strategy_ids=[item.id for item in request.candidate_strategies],
-        recommended_strategy_id=recommendation.recommended_strategy_id,
+        tool_calls=[],
+        candidate_strategy_ids=[selected.id],
+        recommended_strategy_id=request.recommended_strategy_id,
         title="Recommendation generated",
-        summary=f"Decision run {run.id} generated a recommendation.",
+        summary=f"Persisted recommendation for decision {decision.id}.",
     )
     session.flush()
     return recommendation_to_schema(record)

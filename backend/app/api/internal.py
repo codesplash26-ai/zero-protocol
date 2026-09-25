@@ -10,7 +10,6 @@ from app.schemas import (
     OptimizationPersistRequest,
     OptimizationResult,
     Recommendation,
-    RecommendationPersistRequest,
 )
 from app.services.idempotency import get_replay, store_response
 from app.services.orchestration import persist_optimization, persist_recommendation
@@ -59,7 +58,7 @@ def create_optimization_result(
     status_code=status.HTTP_201_CREATED,
 )
 def create_recommendation(
-    request: RecommendationPersistRequest,
+    request: Recommendation,
     idempotency_key: str = Header(alias="Idempotency-Key", min_length=1),
     session: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),

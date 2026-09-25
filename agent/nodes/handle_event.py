@@ -1,11 +1,9 @@
 from schemas.models import (
-    Event,
-    OrganizationState,
+    EventCreateRequest,
 )
 
-from tools.event_tool import (
-    apply_event,
-    check_materiality,
+from tools.backend_client import (
+    get_backend_client,
 )
 
 from state import AgentState
@@ -14,28 +12,50 @@ from state import AgentState
 def handle_event_node(
     state: AgentState,
 ) -> dict:
-
-    event = Event(
-        **state["event"]
+    request = EventCreateRequest(
+        **state["event_request"]
     )
 
-    organization = OrganizationState(
-        **state["organization_state"]
+    event_idempotency_key = state.get(
+        "event_idempotency_key"
+    )
+    materiality_idempotency_key = state.get(
+        "materiality_idempotency_key"
     )
 
-    updated_state = apply_event(
-        event,
-        organization,
-    )
+    if not event_idempotency_key:
+        raise ValueError(
+            "event_idempotency_key is required"
+        )
+    if not materiality_idempotency_key:
+        raise ValueError(
+            "materiality_idempotency_key is required"
+        )
 
-    materiality = check_materiality(
-        event
+    client = get_backend_client()
+    event = client.create_event(
+        request,
+        idempotency_key=event_idempotency_key,
     )
+    materiality = client.check_materiality(
+        event.id,
+        idempotency_key=(
+            materiality_idempotency_key
+        ),
+    )
+    organization = client.get_current_state()
+    experiments = client.get_experiments()
 
     return {
-        "organization_state":
-            updated_state.model_dump(),
-
-        "materiality_result":
-            materiality.model_dump(),
+        "event": event.model_dump(mode="json"),
+        "organization_state": organization.model_dump(
+            mode="json"
+        ),
+        "experiments": [
+            experiment.model_dump(mode="json")
+            for experiment in experiments
+        ],
+        "materiality_result": materiality.model_dump(
+            mode="json"
+        ),
     }
