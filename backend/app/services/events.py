@@ -37,7 +37,9 @@ from app.services.state import (
 
 
 def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def event_to_schema(record: EventRecord) -> Event:

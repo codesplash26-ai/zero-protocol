@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.services.agent_gateway import get_agent_gateway
 
 INTERNAL_KEY = "local-development-only"
@@ -28,29 +30,15 @@ def _persist_recommendation(
     response = client.post(
         "/api/v1/recommendations",
         json={
-            "run_id": run["id"],
-            "candidate_strategies": [
-                {
-                    "id": "STRATEGY-A-B",
-                    "experiment_ids": ["A", "B"],
-                    "sequence": ["A", "B"],
-                    "conditional": True,
-                    "condition": "Run B only after A completes with SUCCESS.",
-                }
-            ],
-            "recommendation": {
-                "decision_id": run["decision_id"],
-                "recommended_strategy_id": "STRATEGY-A-B",
-                "current_executable_experiment_id": executable,
-                "now": [f"Run Experiment {executable}"],
-                "next": [f"Evaluate Experiment {executable}"],
-                "later": [],
-                "defer": [],
-                "reasoning_summary": f"Experiment {executable} is now executable.",
-                "requires_approval": False,
-                "state_version": state_version,
-            },
-            "tool_calls": ["check_feasibility", "calculate_consequences"],
+            "decision_id": run["decision_id"],
+            "recommended_strategy_id": f"STRATEGY-{executable}",
+            "now": [executable],
+            "next": [],
+            "later": [],
+            "defer": [item for item in ["A", "B", "C"] if item != executable],
+            "reasoning_summary": f"Experiment {executable} is now executable.",
+            "requires_approval": executable == "B",
+            "state_version": state_version,
         },
         headers={
             "X-Internal-Service-Key": INTERNAL_KEY,
@@ -83,9 +71,8 @@ def _start_a(client) -> tuple[dict, dict]:
         "/api/v1/actions/execute",
         json={
             "decision_id": run["decision_id"],
-            "strategy_id": "STRATEGY-A-B",
+            "strategy_id": "STRATEGY-A",
             "experiment_id": "A",
-            "action_type": "START_EXPERIMENT",
             "approval_id": approval["id"],
             "expected_state_version": 1,
         },
@@ -133,6 +120,177 @@ def _complete_a_and_release_sso(client) -> tuple[dict, dict]:
     return completion.json(), capacity.json()
 
 
+def _budget_event_payload(occurred_at: str, *, expected_state_version: int = 1) -> dict:
+    return {
+        "event_type": "BUDGET_CHANGE",
+        "description": "Budget increased for contract verification.",
+        "engineering_delta_hours": 0,
+        "budget_delta_usd": 1,
+        "experiment_id": None,
+        "experiment_outcome": None,
+        "commitment_id": None,
+        "source": "contract_test",
+        "occurred_at": occurred_at,
+        "expected_state_version": expected_state_version,
+    }
+
+
+@pytest.mark.parametrize(
+    "occurred_at",
+    [
+        "2026-09-25T05:43:47Z",
+        "2026-09-25T05:43:47+00:00",
+    ],
+)
+def test_event_accepts_utc_timestamps(client, occurred_at):
+    response = client.post(
+        "/api/v1/events",
+        json=_budget_event_payload(occurred_at),
+        headers={"Idempotency-Key": f"utc-event-{occurred_at}"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["occurred_at"].endswith("Z")
+
+
+@pytest.mark.parametrize(
+    "occurred_at",
+    [
+        "2026-09-25T05:43:47",
+        "2026-09-25T11:13:47+05:30",
+    ],
+)
+def test_event_rejects_non_utc_timestamps(client, occurred_at):
+    response = client.post(
+        "/api/v1/events",
+        json=_budget_event_payload(occurred_at),
+        headers={"Idempotency-Key": f"invalid-utc-event-{occurred_at}"},
+    )
+
+    assert response.status_code == 422
+    assert client.get("/api/v1/state").json()["state_version"] == 1
+
+
+def test_event_is_idempotent_and_rejects_key_reuse(client):
+    payload = _budget_event_payload("2026-09-25T05:43:47Z")
+    headers = {"Idempotency-Key": "event-idempotency"}
+
+    first = client.post("/api/v1/events", json=payload, headers=headers)
+    replay = client.post("/api/v1/events", json=payload, headers=headers)
+    changed = client.post(
+        "/api/v1/events",
+        json={**payload, "description": "Different event payload."},
+        headers=headers,
+    )
+
+    assert first.status_code == 201
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert client.get("/api/v1/state").json()["state_version"] == 2
+
+
+def test_event_rejects_stale_state_version(client):
+    response = client.post(
+        "/api/v1/events",
+        json=_budget_event_payload(
+            "2026-09-25T05:43:47Z",
+            expected_state_version=2,
+        ),
+        headers={"Idempotency-Key": "stale-event"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "STATE_VERSION_CONFLICT"
+
+
+@pytest.mark.parametrize(
+    ("outcome", "dependency_satisfied"),
+    [("SUCCESS", True), ("FAILURE", False)],
+)
+def test_experiment_result_completes_a_and_preserves_dependency_rule(
+    client,
+    outcome,
+    dependency_satisfied,
+):
+    _start_a(client)
+    response = client.post(
+        "/api/v1/events",
+        json={
+            "event_type": "EXPERIMENT_RESULT",
+            "description": f"Experiment A completed with {outcome}.",
+            "engineering_delta_hours": 0,
+            "budget_delta_usd": 0,
+            "experiment_id": "A",
+            "experiment_outcome": outcome,
+            "commitment_id": None,
+            "source": "experiment_runner",
+            "occurred_at": "2026-09-25T05:43:47Z",
+            "expected_state_version": 2,
+        },
+        headers={"Idempotency-Key": f"complete-a-{outcome.lower()}"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["state_version"] == 3
+    experiment = client.get("/api/v1/experiments/A").json()
+    assert experiment["status"] == "COMPLETED"
+    assert experiment["outcome"] == outcome
+    state = client.get("/api/v1/state").json()
+    assert state["state_version"] == 3
+    assert state["reserved_engineering_hours"] == 36
+    assert state["available_engineering_hours"] == 24
+
+    feasibility = client.post(
+        "/api/v1/feasibility/check",
+        json={
+            "strategy": {
+                "id": "STRATEGY-B",
+                "experiment_ids": ["B"],
+                "sequence": ["B"],
+                "conditional": False,
+                "condition": None,
+            }
+        },
+    )
+    assert feasibility.status_code == 200
+    assert feasibility.json()["feasible"] is dependency_satisfied
+
+
+def test_experiment_result_rejects_non_running_experiment(client):
+    response = client.post(
+        "/api/v1/events",
+        json={
+            "event_type": "EXPERIMENT_RESULT",
+            "description": "Invalid result for proposed A.",
+            "engineering_delta_hours": 0,
+            "budget_delta_usd": 0,
+            "experiment_id": "A",
+            "experiment_outcome": "SUCCESS",
+            "commitment_id": None,
+            "source": "experiment_runner",
+            "occurred_at": "2026-09-25T05:43:47Z",
+            "expected_state_version": 1,
+        },
+        headers={"Idempotency-Key": "invalid-a-result"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "INVALID_EXPERIMENT_TRANSITION"
+    assert client.get("/api/v1/state").json()["state_version"] == 1
+
+
+def test_materiality_event_not_found(client):
+    response = client.post(
+        "/api/v1/events/EVENT-UNKNOWN/materiality",
+        headers={"Idempotency-Key": "missing-event-materiality"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "EVENT_NOT_FOUND"
+
+
 def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
     gateway = RecordingGateway()
     client.app.dependency_overrides[get_agent_gateway] = lambda: gateway
@@ -152,6 +310,11 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
     state_v4 = client.get("/api/v1/state").json()
     assert state_v4["reserved_engineering_hours"] == 18
     assert state_v4["available_engineering_hours"] == 42
+    assert state_v4["engineering_capacity_hours"] == 60
+    assert state_v4["available_engineering_hours"] == (
+        state_v4["engineering_capacity_hours"]
+        - state_v4["reserved_engineering_hours"]
+    )
 
     materiality = client.post(
         f"/api/v1/events/{capacity['id']}/materiality",
@@ -163,6 +326,7 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
         "available_engineering_hours",
         "reserved_engineering_hours",
     ]
+    assert materiality.json()["state_version"] == 4
     assert client.get(
         f"/api/v1/events/{capacity['id']}/materiality"
     ).json() == materiality.json()
@@ -215,9 +379,8 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
         "/api/v1/actions/execute",
         json={
             "decision_id": initial_run["decision_id"],
-            "strategy_id": "STRATEGY-A-B",
+            "strategy_id": "STRATEGY-B",
             "experiment_id": "B",
-            "action_type": "START_EXPERIMENT",
             "approval_id": approval_b["id"],
             "expected_state_version": 4,
         },
@@ -230,13 +393,14 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
         f"/api/v1/recommendations/{initial_run['decision_id']}"
     )
     assert latest.status_code == 200
-    assert latest.json()["current_executable_experiment_id"] == "B"
+    assert latest.json()["now"] == ["B"]
+    assert "current_executable_experiment_id" not in latest.json()
     audit = client.get(f"/api/v1/audit/{initial_run['decision_id']}")
     assert audit.status_code == 200
-    titles = [item["title"] for item in audit.json()["items"]]
-    assert "Event materiality evaluated" in titles
-    assert "Replan run queued" in titles
-    assert titles.count("Experiment started") == 2
+    trace = audit.json()["items"]
+    assert all("title" not in item and "summary" not in item for item in trace)
+    assert any(capacity["id"] in item["event_ids"] for item in trace)
+    assert sum(item["action_receipt_id"] is not None for item in trace) == 2
     filtered_audit = client.get(
         "/api/v1/audit",
         params={"event_id": capacity["id"], "query": "materiality"},
@@ -244,9 +408,7 @@ def test_event_application_materiality_and_replan_complete_v1_to_v5(client):
     assert len(filtered_audit.json()["items"]) == 1
     overview = client.get("/api/v1/overview").json()
     assert overview["organization_state"]["state_version"] == 5
-    assert overview["latest_recommendation"][
-        "current_executable_experiment_id"
-    ] == "B"
+    assert overview["latest_recommendation"]["now"] == ["B"]
     assert overview["governor_status"]["state"] == "MONITORING"
     assert overview["recent_activity"]
 

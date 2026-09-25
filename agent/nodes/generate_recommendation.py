@@ -14,6 +14,10 @@ def generate_recommendation_node(
 ) -> dict:
 
     provider = FallbackProvider()
+    decision_id = state["decision_id"]
+    authoritative_state_version = state[
+        "organization_state"
+    ]["state_version"]
 
     # ---------------------------------
     # Find feasible strategies
@@ -246,10 +250,15 @@ CP-SAT result:
     indent=2
 )}
 
+Authoritative state version:
+
+{state["organization_state"]["state_version"]}
+
 Select one feasible strategy.
 
-Use:
-decision_id = DEC-001
+Use exactly:
+decision_id = {decision_id}
+state_version = {authoritative_state_version}
 """
 
     result = provider.generate_structured(
@@ -269,7 +278,7 @@ decision_id = DEC-001
         if len(feasible_strategies) == 1:
 
             result = Recommendation(
-                decision_id="DEC-001",
+                decision_id=decision_id,
                 recommended_strategy_id=
                     feasible_strategies[0][
                         "id"
@@ -284,6 +293,7 @@ decision_id = DEC-001
                     "deterministic dependency "
                     "and feasibility constraints."
                 ),
+                state_version=authoritative_state_version,
             )
 
         else:
@@ -430,6 +440,10 @@ decision_id = DEC-001
         result.model_dump()
     )
 
+    recommendation["decision_id"] = (
+        decision_id
+    )
+
     recommendation[
         "reasoning_summary"
     ] = reasoning_summary
@@ -449,6 +463,10 @@ decision_id = DEC-001
     recommendation[
         "requires_approval"
     ] = False
+
+    recommendation["state_version"] = (
+        authoritative_state_version
+    )
 
     return {
         "recommendation":

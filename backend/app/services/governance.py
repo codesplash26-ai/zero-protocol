@@ -24,6 +24,7 @@ from app.schemas import (
     ActionExecuteRequest,
     ActionReceipt,
     ActionReceiptStatus,
+    ActionType,
     Approval,
     ApprovalCheckRequest,
     ApprovalCreateRequest,
@@ -45,9 +46,11 @@ from app.services.state import (
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
-    if value is not None and value.tzinfo is None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
-    return value
+    return value.astimezone(UTC)
 
 
 def approval_to_schema(record: ApprovalRecord) -> Approval:
@@ -75,7 +78,6 @@ def approval_to_schema(record: ApprovalRecord) -> Approval:
 def receipt_to_schema(record: ActionReceiptRecord) -> ActionReceipt:
     return ActionReceipt(
         id=record.id,
-        approval_id=record.approval_id,
         decision_id=record.decision_id,
         strategy_id=record.strategy_id,
         experiment_id=record.experiment_id,
@@ -123,6 +125,48 @@ def _load_scope(
     return decision, strategy, experiment
 
 
+def _load_strategy_scope(
+    session: Session,
+    *,
+    organization_id: str,
+    decision_id: str,
+    strategy_id: str,
+    experiment_ids: list[str],
+) -> tuple[Decision, CandidateStrategyRecord, list[ExperimentRecord]]:
+    decision = session.get(Decision, decision_id)
+    if decision is None or decision.organization_id != organization_id:
+        raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
+    strategy = session.get(CandidateStrategyRecord, strategy_id)
+    if strategy is None or strategy.decision_id != decision_id:
+        raise APIError(404, "STRATEGY_NOT_FOUND", "The strategy was not found.")
+
+    records = session.scalars(
+        select(ExperimentRecord).where(
+            ExperimentRecord.organization_id == organization_id,
+            ExperimentRecord.id.in_(experiment_ids),
+        )
+    ).all()
+    supplied_ids = set(experiment_ids)
+    experiment_map = {record.id: record for record in records}
+    missing = sorted(supplied_ids - experiment_map.keys())
+    if missing:
+        raise APIError(
+            404,
+            "EXPERIMENT_NOT_FOUND",
+            "One or more requested experiments were not found.",
+            {"experiment_ids": missing},
+        )
+
+    if not supplied_ids.issubset(set(strategy.experiment_ids)):
+        raise APIError(
+            409,
+            "APPROVAL_SCOPE_MISMATCH",
+            "One or more experiments are not part of the supplied strategy.",
+        )
+
+    return decision, strategy, [experiment_map[item] for item in experiment_ids]
+
+
 def check_approval_policy(
     session: Session,
     *,
@@ -145,28 +189,25 @@ def check_approval_policy(
             "The organization state changed.",
             {"expected": request.expected_state_version, "actual": state_version},
         )
-    _, _, experiment = _load_scope(
+    _, _, experiments = _load_strategy_scope(
         session,
         organization_id=organization_id,
         decision_id=request.decision_id,
         strategy_id=request.strategy_id,
-        experiment_id=request.experiment_id,
+        experiment_ids=request.experiment_ids,
     )
-    required = experiment.cost_usd > threshold
-    decision = ApprovalDecision.PENDING if required else ApprovalDecision.NOT_REQUIRED
+    evaluated_cost_usd = sum(experiment.cost_usd for experiment in experiments)
+    required = evaluated_cost_usd > threshold
     reason = (
-        "Experiment cost exceeds the configured approval threshold."
+        "Strategy cost exceeds the configured approval threshold."
         if required
-        else "Experiment cost is within the configured approval threshold."
+        else "Strategy cost is within the configured approval threshold."
     )
     return ApprovalPolicyResult(
         approval_required=required,
-        decision=decision,
         reason=reason,
         threshold_usd=threshold,
-        authorized_cost_usd=experiment.cost_usd,
-        authorized_engineering_hours=experiment.engineering_hours,
-        authorized_traffic=experiment.traffic_required,
+        evaluated_cost_usd=evaluated_cost_usd,
         state_version=state_version,
     )
 
@@ -176,25 +217,40 @@ def create_approval(
     *,
     organization_id: str,
     request: ApprovalCreateRequest,
+    requested_by: str = "governor",
 ) -> Approval:
     policy = check_approval_policy(
         session,
         organization_id=organization_id,
-        request=ApprovalCheckRequest(
-            decision_id=request.decision_id,
-            strategy_id=request.strategy_id,
-            experiment_id=request.experiment_id,
-            action_type=request.action_type,
-            expected_state_version=request.expected_state_version,
-        ),
+        request=ApprovalCheckRequest.model_validate(request.model_dump()),
         lock_state=True,
+    )
+    decision, _, experiments = _load_strategy_scope(
+        session,
+        organization_id=organization_id,
+        decision_id=request.decision_id,
+        strategy_id=request.strategy_id,
+        experiment_ids=request.experiment_ids,
+    )
+    if len(experiments) != 1:
+        raise APIError(
+            400,
+            "INVALID_APPROVAL_REQUEST",
+            "Approval creation requires exactly one executable experiment.",
+        )
+    experiment = experiments[0]
+    action_type = ActionType.START_EXPERIMENT
+    approval_decision = (
+        ApprovalDecision.PENDING
+        if policy.approval_required
+        else ApprovalDecision.NOT_REQUIRED
     )
     existing = session.scalar(
         select(ApprovalRecord).where(
             ApprovalRecord.decision_id == request.decision_id,
             ApprovalRecord.strategy_id == request.strategy_id,
-            ApprovalRecord.experiment_id == request.experiment_id,
-            ApprovalRecord.action_type == request.action_type.value,
+            ApprovalRecord.experiment_id == experiment.id,
+            ApprovalRecord.action_type == action_type.value,
             ApprovalRecord.state_version == policy.state_version,
         )
     )
@@ -204,23 +260,22 @@ def create_approval(
         id=new_id("APR"),
         decision_id=request.decision_id,
         strategy_id=request.strategy_id,
-        experiment_id=request.experiment_id,
-        action_type=request.action_type.value,
-        decision=policy.decision.value,
+        experiment_id=experiment.id,
+        action_type=action_type.value,
+        decision=approval_decision.value,
         reason=policy.reason,
         threshold_usd=policy.threshold_usd,
-        authorized_cost_usd=policy.authorized_cost_usd,
-        authorized_engineering_hours=policy.authorized_engineering_hours,
-        authorized_traffic=policy.authorized_traffic,
+        authorized_cost_usd=experiment.cost_usd,
+        authorized_engineering_hours=experiment.engineering_hours,
+        authorized_traffic=experiment.traffic_required,
         state_version=policy.state_version,
-        requested_by=request.requested_by,
+        requested_by=requested_by,
         decided_by=None,
         decided_at=None,
         expires_at=None,
     )
     session.add(record)
     session.flush()
-    decision = session.get(Decision, request.decision_id)
     append_audit(
         session,
         organization_id=organization_id,
@@ -249,11 +304,10 @@ def ensure_approval_for_recommendation(
         request=ApprovalCreateRequest(
             decision_id=recommendation.decision_id,
             strategy_id=recommendation.recommended_strategy_id,
-            experiment_id=recommendation.current_executable_experiment_id,
-            action_type="START_EXPERIMENT",
+            experiment_ids=[recommendation.current_executable_experiment_id],
             expected_state_version=recommendation.state_version,
-            requested_by=requested_by,
         ),
+        requested_by=requested_by,
     )
 
 
@@ -417,15 +471,19 @@ def execute_action(
         approval.decision_id,
         approval.strategy_id,
         approval.experiment_id,
-        approval.action_type,
     )
     requested_scope = (
         request.decision_id,
         request.strategy_id,
         request.experiment_id,
-        request.action_type.value,
     )
     if scope != requested_scope:
+        raise APIError(
+            409,
+            "APPROVAL_SCOPE_MISMATCH",
+            "The approval does not authorize this action.",
+        )
+    if approval.action_type != ActionType.START_EXPERIMENT.value:
         raise APIError(
             409,
             "APPROVAL_SCOPE_MISMATCH",

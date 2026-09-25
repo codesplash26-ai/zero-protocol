@@ -1,12 +1,11 @@
-from typing import Optional
+from uuid import uuid4
 
 from ortools.sat.python import cp_model
-
 from schemas.models import (
     Experiment,
     ExperimentStatus,
-    OrganizationState,
     OptimizationResult,
+    OrganizationState,
     SolverStatus,
     dependency_satisfied_by_completed_success,
 )
@@ -38,7 +37,7 @@ class CombinationCollector(cp_model.CpSolverSolutionCallback):
 def find_feasible_combinations(
     state: OrganizationState,
     experiments: list[Experiment],
-    required_experiment_ids: Optional[list[str]] = None,
+    required_experiment_ids: list[str] | None = None,
 ) -> OptimizationResult:
 
     model = cp_model.CpModel()
@@ -215,14 +214,6 @@ def find_feasible_combinations(
         collector,
     )
 
-    status_name = solver.StatusName(
-        status
-    )
-
-    solver_status = SolverStatus(
-        status_name
-    )
-
     # -------------------------------------------------
     # Sort combinations for cleaner output
     # -------------------------------------------------
@@ -235,7 +226,23 @@ def find_feasible_combinations(
         ),
     )
 
+    if status == cp_model.INFEASIBLE:
+        solver_status = SolverStatus.INFEASIBLE
+        combinations = []
+    elif status in (cp_model.OPTIMAL, cp_model.FEASIBLE) and combinations:
+        # This model enumerates feasible sets without an objective. OR-Tools
+        # uses OPTIMAL to mean enumeration completed, not that a winner exists.
+        solver_status = SolverStatus.FEASIBLE
+    else:
+        solver_status = SolverStatus.UNKNOWN
+
     return OptimizationResult(
         status=solver_status,
+        selected_experiment_ids=[],
         feasible_combinations=combinations,
+        objective_value=None,
+        solver_run_id=(
+            f"SOLVER-{uuid4().hex[:12].upper()}"
+        ),
+        evaluated_state_version=state.state_version,
     )

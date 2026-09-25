@@ -12,6 +12,10 @@ from schemas.models import (
     dependency_satisfied_by_completed_success,
 )
 
+from tools.experiment_rules import (
+    detect_newly_unlocked_experiment_ids,
+)
+
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -57,46 +61,6 @@ def get_experiments() -> list[Experiment]:
         Experiment(**experiment)
         for experiment in data["experiments"]
     ]
-
-
-def detect_newly_unlocked_experiment_ids(
-    experiments: list[Experiment],
-) -> list[str]:
-
-    experiment_map = {
-        experiment.id: experiment
-        for experiment in experiments
-    }
-
-    newly_unlocked = []
-
-    for experiment in experiments:
-
-        if (
-            experiment.status
-            == ExperimentStatus.COMPLETED
-        ):
-            continue
-
-        if not experiment.dependencies:
-            continue
-
-        dependencies_satisfied = all(
-            dependency_satisfied_by_completed_success(
-                experiment_map.get(
-                    dependency_id
-                )
-            )
-            for dependency_id
-            in experiment.dependencies
-        )
-
-        if dependencies_satisfied:
-            newly_unlocked.append(
-                experiment.id
-            )
-
-    return newly_unlocked
 
 
 def check_feasibility(
@@ -232,6 +196,8 @@ def check_feasibility(
         strategy_id=strategy.id,
         feasible=len(violations) == 0,
         violations=violations,
+        evaluated_state_version=
+            state.state_version,
     )
 
 
@@ -299,4 +265,11 @@ def calculate_consequences(
             state.eligible_traffic
             - traffic_used
         ),
+
+        delay_days=0,
+
+        affected_commitments=[],
+
+        evaluated_state_version=
+            state.state_version,
     )
