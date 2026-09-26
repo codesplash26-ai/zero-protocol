@@ -42,6 +42,8 @@ export interface GovernorData {
   refresh: () => Promise<void>;
   /** Follow a run returned by POST /decisions or /replans until it settles. */
   trackRun: (run: DecisionRun) => void;
+  /** Restore the seeded demo scenario (backend DEMO_MODE), forget followed runs, reload. */
+  resetDemo: () => Promise<void>;
 }
 
 export const GovernorDataContext = createContext<GovernorData | null>(null);

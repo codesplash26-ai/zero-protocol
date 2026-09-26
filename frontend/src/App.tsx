@@ -6,6 +6,7 @@ import Experiments from './pages/Experiments';
 import Approvals from './pages/Approvals';
 import Events from './pages/Events';
 import Audit from './pages/Audit';
+import Landing from './pages/Landing';
 import { GovernorDataProvider } from './state/GovernorDataProvider';
 import './App.css';
 
@@ -14,8 +15,9 @@ function App() {
     <GovernorDataProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<AppLayout />}>
-            <Route index element={<Overview />} />
+          <Route path="/" element={<Landing />} />
+          <Route element={<AppLayout />}>
+            <Route path="overview" element={<Overview />} />
             <Route path="decision" element={<Decision />} />
             <Route path="experiments" element={<Experiments />} />
             <Route path="approvals" element={<Approvals />} />

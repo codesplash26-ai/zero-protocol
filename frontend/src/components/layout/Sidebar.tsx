@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   Compass,
@@ -10,6 +10,7 @@ import {
   Settings,
   X,
   ShieldAlert,
+  Home,
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useGovernorData } from '../../state/governorContext';
@@ -32,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
   const governorDisplay = describeGovernor(governorStatus, isLoading);
 
   const navItems: NavItem[] = [
-    { name: 'Overview', path: '/', icon: <LayoutDashboard size={18} /> },
+    { name: 'Overview', path: '/overview', icon: <LayoutDashboard size={18} /> },
     { name: 'Decision', path: '/decision', icon: <Compass size={18} /> },
     { name: 'Experiments', path: '/experiments', icon: <FlaskConical size={18} /> },
     { name: 'Approvals', path: '/approvals', icon: <ShieldCheck size={18} /> },
@@ -160,7 +161,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={item.path === '/'}
                 onClick={onCloseMobile}
                 style={({ isActive }) => ({
                   display: 'flex',
@@ -191,6 +191,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               </NavLink>
             ))}
           </nav>
+
+          <Link
+            to="/"
+            onClick={onCloseMobile}
+            className="eg-nav-item"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              marginTop: '1rem',
+              padding: '0.5625rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.8125rem',
+              color: '#94A3B8',
+              borderLeft: '3px solid transparent',
+              transition: 'all 0.15s ease-in-out',
+            }}
+          >
+            <Home size={16} />
+            <span>Product home</span>
+          </Link>
         </div>
 
         {/* Bottom Section */}
