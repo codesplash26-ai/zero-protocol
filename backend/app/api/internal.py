@@ -7,12 +7,20 @@ from app.api.dependencies import require_internal_service
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.schemas import (
+    DecisionRun,
+    DecisionRunClaim,
+    DecisionRunFailureRequest,
     OptimizationPersistRequest,
     OptimizationResult,
     Recommendation,
 )
 from app.services.idempotency import get_replay, store_response
-from app.services.orchestration import persist_optimization, persist_recommendation
+from app.services.orchestration import (
+    claim_next_decision_run,
+    fail_decision_run,
+    persist_optimization,
+    persist_recommendation,
+)
 
 router = APIRouter(dependencies=[Depends(require_internal_service)])
 
@@ -86,3 +94,30 @@ def create_recommendation(
         )
         return response
 
+
+@router.post("/internal/decision-runs/claim", response_model=DecisionRunClaim)
+def claim_decision_run(
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> DecisionRunClaim:
+    """Hand the oldest QUEUED run to the Governor worker and mark it RUNNING."""
+    with session.begin():
+        return claim_next_decision_run(
+            session, organization_id=settings.default_organization_id
+        )
+
+
+@router.post("/internal/decision-runs/{run_id}/fail", response_model=DecisionRun)
+def fail_run(
+    run_id: str,
+    request: DecisionRunFailureRequest,
+    session: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> DecisionRun:
+    with session.begin():
+        return fail_decision_run(
+            session,
+            organization_id=settings.default_organization_id,
+            run_id=run_id,
+            request=request,
+        )

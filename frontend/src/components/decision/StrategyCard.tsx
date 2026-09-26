@@ -1,11 +1,12 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { CandidateStrategy } from '../../mock/pulseboard';
+import type { StrategyView } from '../../types/contract';
+import { formatUsd } from '../../lib/format';
 import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, DollarSign, Cpu, TrendingUp } from 'lucide-react';
 
 export interface StrategyCardProps {
-  strategy: CandidateStrategy;
+  strategy: StrategyView;
   isSelected?: boolean;
   onSelect?: () => void;
 }
@@ -15,34 +16,37 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
   isSelected = false,
   onSelect,
 }) => {
-  const getStatusBadge = (status: CandidateStrategy['status']) => {
+  const getStatusBadge = (status: StrategyView['evaluation_status']) => {
     switch (status) {
-      case 'Recommended':
+      case 'RECOMMENDED':
         return (
           <Badge variant="teal" size="md">
             <CheckCircle2 size={13} />
             <span>Governor Recommended</span>
           </Badge>
         );
-      case 'Alternative':
+      case 'ALTERNATIVE':
         return (
           <Badge variant="info" size="md">
             <AlertTriangle size={13} />
             <span>Feasible Alternative</span>
           </Badge>
         );
-      case 'Infeasible':
+      case 'INFEASIBLE':
         return (
           <Badge variant="danger" size="md">
             <XCircle size={13} />
             <span>Constraint Violation</span>
           </Badge>
         );
+      default:
+        return <Badge variant="default" size="md">{status}</Badge>;
     }
   };
 
-  const isRecommended = strategy.status === 'Recommended';
-  const isInfeasible = strategy.status === 'Infeasible';
+  const isRecommended = strategy.evaluation_status === 'RECOMMENDED';
+  const isInfeasible = strategy.evaluation_status === 'INFEASIBLE';
+  const { consequences, feasibility } = strategy;
 
   return (
     <Card
@@ -75,7 +79,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
           </div>
         </div>
 
-        <div>{getStatusBadge(strategy.status)}</div>
+        <div>{getStatusBadge(strategy.evaluation_status)}</div>
       </CardHeader>
 
       <CardContent style={{ marginTop: '0.875rem' }}>
@@ -147,7 +151,7 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               <span>EXPECTED IMPACT</span>
             </div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-              {strategy.expected_impact}
+              {strategy.expected_impact ?? <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>Not estimated</span>}
             </div>
           </div>
 
@@ -181,9 +185,55 @@ export const StrategyCard: React.FC<StrategyCardProps> = ({
               <span>EST. COST</span>
             </div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-              ${strategy.cost_usd.toLocaleString()}
+              {formatUsd(strategy.cost_usd)}
             </div>
           </div>
+        </div>
+
+        {/* Deterministic consequences (backend feasibility + consequence engines) */}
+        <div
+          style={{
+            padding: '0.75rem 0.875rem',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-bg)',
+            border: '1px solid var(--color-border)',
+            marginBottom: '1rem',
+            fontSize: '0.8125rem',
+            color: 'var(--color-text-secondary)',
+            lineHeight: 1.6,
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              color: 'var(--color-text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: '0.25rem',
+            }}
+          >
+            CONSEQUENCES (STATE v{consequences.evaluated_state_version})
+          </div>
+          <div>
+            Remaining after selection:{' '}
+            <strong style={{ color: 'var(--color-text-main)' }}>{formatUsd(consequences.remaining_budget_usd)}</strong>,{' '}
+            <strong style={{ color: 'var(--color-text-main)' }}>{consequences.remaining_engineering_hours}h</strong> engineering,{' '}
+            <strong style={{ color: 'var(--color-text-main)' }}>{consequences.remaining_traffic.toLocaleString()}</strong> sessions
+          </div>
+          <div>
+            Delay: <strong style={{ color: 'var(--color-text-main)' }}>{consequences.delay_days} days</strong> · Affected
+            commitments:{' '}
+            <strong style={{ color: 'var(--color-text-main)' }}>
+              {consequences.affected_commitments.length ? consequences.affected_commitments.join(', ') : 'None'}
+            </strong>{' '}
+            · Traffic used: <strong style={{ color: 'var(--color-text-main)' }}>{strategy.traffic_required.toLocaleString()}</strong>
+          </div>
+          {feasibility.violations.length > 0 && (
+            <div style={{ color: 'var(--color-danger)', marginTop: '0.25rem' }}>
+              <strong>Constraint violations:</strong> {feasibility.violations.join('; ')}
+            </div>
+          )}
         </div>
 
         {/* Advantage & Tradeoff Notes */}

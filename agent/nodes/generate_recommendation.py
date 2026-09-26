@@ -2,6 +2,9 @@ import json
 
 from schemas.models import Recommendation
 
+from providers.deterministic_provider import (
+    FALLBACK_LABEL,
+)
 from providers.fallback_provider import (
     FallbackProvider,
 )
@@ -434,6 +437,16 @@ state_version = {authoritative_state_version}
             "engineering hours, and "
             f"{chosen_consequences['remaining_traffic']} "
             "traffic."
+        )
+
+    if provider.last_provider == "deterministic":
+
+        # reasoning_summary is the only persisted field that can
+        # show the selection was made without an LLM.
+        reasoning_summary = (
+            f"{FALLBACK_LABEL} {reasoning_summary} "
+            "No LLM provider was available, so the strategy was "
+            "selected by rule-based ranking of the supplied facts."
         )
 
     recommendation = (

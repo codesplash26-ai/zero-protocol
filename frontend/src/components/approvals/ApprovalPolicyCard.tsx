@@ -1,12 +1,13 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { OrganizationState, Goal } from '../../mock/pulseboard';
+import type { OrganizationState, Goal } from '../../types/contract';
+import { formatUsd } from '../../lib/format';
 import { ShieldCheck, DollarSign, Clock, Lock } from 'lucide-react';
 
 export interface ApprovalPolicyCardProps {
   organizationState: OrganizationState;
-  goal: Goal;
+  goal: Goal | null;
 }
 
 export const ApprovalPolicyCard: React.FC<ApprovalPolicyCardProps> = ({
@@ -63,7 +64,7 @@ export const ApprovalPolicyCard: React.FC<ApprovalPolicyCardProps> = ({
                 Approval Threshold
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                ${organizationState.approval_threshold_usd.toLocaleString()} USD
+                {formatUsd(organizationState.approval_threshold_usd)} USD
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                 Expenditures above threshold require explicit authorization
@@ -82,7 +83,7 @@ export const ApprovalPolicyCard: React.FC<ApprovalPolicyCardProps> = ({
                 {organizationState.available_engineering_hours}h / {organizationState.engineering_capacity_hours}h
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {organizationState.reserved_engineering_hours}h locked for commitments
+                {organizationState.reserved_engineering_hours}h reserved (commitments and running experiments)
               </div>
             </div>
           </div>
@@ -95,7 +96,9 @@ export const ApprovalPolicyCard: React.FC<ApprovalPolicyCardProps> = ({
                 Protected Commitments
               </div>
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                {goal.protected_commitments.join(', ').replace('_', ' ').toUpperCase()}
+                {goal && goal.protected_commitments.length > 0
+                  ? goal.protected_commitments.join(', ').replace(/_/g, ' ').toUpperCase()
+                  : 'None recorded'}
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                 Cannot be overridden by experiment strategies

@@ -2,18 +2,23 @@ import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { Event, MaterialityResult } from '../../mock/pulseboard';
+import type { Event, MaterialityResult } from '../../types/contract';
+import { formatSignedHours, formatUsd, formatRelativeTime, formatDateTime } from '../../lib/format';
 import { Zap, AlertTriangle, Clock, DollarSign, ChevronDown, ChevronUp, RefreshCw, Cpu, Layers } from 'lucide-react';
 
 export interface EventFeedItemProps {
   event: Event;
-  materiality?: MaterialityResult;
+  /** Stored backend materiality; null when the event has not been evaluated. */
+  materiality: MaterialityResult | null;
+  /** Replanning is only offered for material events at the current state version. */
+  canReplan: boolean;
   onTriggerReplan: (event: Event) => void;
 }
 
 export const EventFeedItem: React.FC<EventFeedItemProps> = ({
   event,
   materiality,
+  canReplan,
   onTriggerReplan,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -67,7 +72,9 @@ export const EventFeedItem: React.FC<EventFeedItemProps> = ({
           <div>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
               {getEventTypeBadge(event.event_type)}
-              {isMaterial ? (
+              {!materiality ? (
+                <Badge variant="default" size="sm">Materiality not evaluated</Badge>
+              ) : isMaterial ? (
                 <Badge variant="warning" size="sm">Potentially Material Event</Badge>
               ) : (
                 <Badge variant="default" size="sm">Non-Material</Badge>
@@ -81,9 +88,16 @@ export const EventFeedItem: React.FC<EventFeedItemProps> = ({
               {event.description}
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', gap: '1rem' }}>
-              <span>Source: {event.source || 'Governor System Event'}</span>
-              <span>{event.timestamp}</span>
+            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <span>Source: {event.source}</span>
+              <span title={formatDateTime(event.occurred_at)}>{formatRelativeTime(event.occurred_at)}</span>
+              {event.experiment_id && (
+                <span>
+                  Experiment {event.experiment_id}
+                  {event.experiment_outcome ? ` → ${event.experiment_outcome}` : ''}
+                </span>
+              )}
+              {event.commitment_id && <span>Commitment: {event.commitment_id}</span>}
             </div>
           </div>
         </div>
@@ -92,28 +106,32 @@ export const EventFeedItem: React.FC<EventFeedItemProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', fontWeight: 600 }}>
             {event.engineering_delta_hours !== 0 && (
-              <span style={{ color: event.engineering_delta_hours > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
-                {event.engineering_delta_hours > 0 ? `+${event.engineering_delta_hours}h Eng` : `${event.engineering_delta_hours}h Eng`}
+              // Positive = capacity gained, negative = capacity lost (never a materiality signal).
+              <span style={{ color: event.engineering_delta_hours > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                {formatSignedHours(event.engineering_delta_hours)} Eng
               </span>
             )}
-            {event.budget_delta_usd && event.budget_delta_usd !== 0 && (
+            {event.budget_delta_usd !== 0 && (
               <span style={{ color: event.budget_delta_usd > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                {event.budget_delta_usd > 0 ? `+$${event.budget_delta_usd.toLocaleString()} USD` : `-$${Math.abs(event.budget_delta_usd).toLocaleString()} USD`}
+                {event.budget_delta_usd > 0 ? '+' : '−'}
+                {formatUsd(Math.abs(event.budget_delta_usd))} USD
               </span>
             )}
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setExpanded(!expanded)}
-              icon={expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            >
-              {expanded ? 'Hide Analysis' : 'Materiality Analysis'}
-            </Button>
+            {materiality && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setExpanded(!expanded)}
+                icon={expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              >
+                {expanded ? 'Hide Analysis' : 'Materiality Analysis'}
+              </Button>
+            )}
 
-            {isMaterial && (
+            {isMaterial && canReplan && (
               <Button
                 variant="primary"
                 size="sm"

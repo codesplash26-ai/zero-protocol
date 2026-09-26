@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,6 +29,8 @@ from app.schemas import (
     ConsequenceCalculateRequest,
     ConsequenceResult,
     DecisionRun,
+    DecisionRunClaim,
+    DecisionRunFailureRequest,
     DecisionRunResult,
     DecisionRunStatus,
     DecisionRunType,
@@ -380,13 +382,10 @@ def persist_recommendation(
             experiment_ids=selected.experiment_ids,
         ),
     )
-    existing = session.get(CandidateStrategyRecord, selected.id)
-    if existing is not None and existing.decision_id != decision.id:
-        raise APIError(
-            409,
-            "STRATEGY_ID_CONFLICT",
-            "The strategy identifier belongs to another decision.",
-        )
+    # Strategy identity is scoped to the decision (composite key).
+    existing = session.get(
+        CandidateStrategyRecord, {"decision_id": decision.id, "id": selected.id}
+    )
     if existing is not None and existing.experiment_ids != selected.experiment_ids:
         raise APIError(
             409,
@@ -428,6 +427,12 @@ def persist_recommendation(
                 {"violations": executable_result.violations},
             )
 
+    previous = session.scalar(
+        select(RecommendationRecord)
+        .where(RecommendationRecord.decision_id == decision.id)
+        .order_by(RecommendationRecord.created_at.desc(), RecommendationRecord.id.desc())
+        .limit(1)
+    )
     record = RecommendationRecord(
         id=new_id("REC"),
         decision_id=decision.id,
@@ -464,7 +469,7 @@ def persist_recommendation(
     )
     if run is not None:
         run.status = DecisionRunStatus.SUCCEEDED.value
-        run.result = DecisionRunResult.NEW_RECOMMENDATION.value
+        run.result = _run_result(run, previous, record).value
         run.recommendation_state_version = request.state_version
         run.completed_at = datetime.now(UTC)
     append_audit(
@@ -481,6 +486,153 @@ def persist_recommendation(
     )
     session.flush()
     return recommendation_to_schema(record)
+
+
+def _run_result(
+    run: DecisionRunRecord,
+    previous: RecommendationRecord | None,
+    current: RecommendationRecord,
+) -> DecisionRunResult:
+    if run.run_type == DecisionRunType.INITIAL.value or previous is None:
+        return DecisionRunResult.NEW_RECOMMENDATION
+    unchanged = (
+        previous.recommended_strategy_id == current.recommended_strategy_id
+        and previous.current_executable_experiment_id
+        == current.current_executable_experiment_id
+    )
+    return DecisionRunResult.PRESERVED if unchanged else DecisionRunResult.REPLANNED
+
+
+# A worker that dies mid-run would otherwise leave the run RUNNING forever and
+# block every later decision with ACTIVE_RUN_EXISTS.
+STALE_RUN_TIMEOUT = timedelta(minutes=10)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _mark_run_failed(
+    session: Session,
+    *,
+    organization_id: str,
+    run: DecisionRunRecord,
+    decision: Decision,
+    code: str,
+    message: str,
+) -> None:
+    run.status = DecisionRunStatus.FAILED.value
+    run.error = {"code": code, "message": message}
+    run.completed_at = datetime.now(UTC)
+    append_audit(
+        session,
+        organization_id=organization_id,
+        decision_id=decision.id,
+        goal_id=decision.goal_id,
+        state_version=get_current_state(session, organization_id).state_version,
+        title="Decision run failed",
+        summary=f"Governor run {run.id} failed: {code}.",
+    )
+
+
+def claim_next_decision_run(
+    session: Session, *, organization_id: str
+) -> DecisionRunClaim:
+    now = datetime.now(UTC)
+    running = session.execute(
+        select(DecisionRunRecord, Decision)
+        .join(Decision, Decision.id == DecisionRunRecord.decision_id)
+        .where(
+            Decision.organization_id == organization_id,
+            DecisionRunRecord.status == DecisionRunStatus.RUNNING.value,
+        )
+    ).all()
+    for stale_run, stale_decision in running:
+        if now - _as_utc(stale_run.created_at) > STALE_RUN_TIMEOUT:
+            _mark_run_failed(
+                session,
+                organization_id=organization_id,
+                run=stale_run,
+                decision=stale_decision,
+                code="RUN_TIMEOUT",
+                message="The Governor worker did not finish this run in time.",
+            )
+
+    row = session.execute(
+        select(DecisionRunRecord, Decision)
+        .join(Decision, Decision.id == DecisionRunRecord.decision_id)
+        .where(
+            Decision.organization_id == organization_id,
+            DecisionRunRecord.status == DecisionRunStatus.QUEUED.value,
+        )
+        .order_by(DecisionRunRecord.created_at.asc(), DecisionRunRecord.id.asc())
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    ).first()
+    if row is None:
+        session.flush()
+        return DecisionRunClaim(run=None, goal_id=None)
+
+    run, decision = row
+    run.status = DecisionRunStatus.RUNNING.value
+    append_audit(
+        session,
+        organization_id=organization_id,
+        decision_id=decision.id,
+        goal_id=decision.goal_id,
+        state_version=get_current_state(session, organization_id).state_version,
+        event_ids=[run.trigger_event_id] if run.trigger_event_id else [],
+        approval_id=run.trigger_approval_id,
+        title="Decision run started",
+        summary=f"Governor worker started {run.run_type} run {run.id}.",
+    )
+    session.flush()
+    return DecisionRunClaim(run=decision_run_to_schema(run), goal_id=decision.goal_id)
+
+
+def fail_decision_run(
+    session: Session,
+    *,
+    organization_id: str,
+    run_id: str,
+    request: DecisionRunFailureRequest,
+) -> DecisionRun:
+    row = session.execute(
+        select(DecisionRunRecord, Decision)
+        .join(Decision, Decision.id == DecisionRunRecord.decision_id)
+        .where(
+            DecisionRunRecord.id == run_id,
+            Decision.organization_id == organization_id,
+        )
+    ).first()
+    if row is None:
+        raise APIError(
+            404,
+            "DECISION_RUN_NOT_FOUND",
+            "The requested decision run was not found.",
+            {"run_id": run_id},
+        )
+    run, decision = row
+    if run.status not in (
+        DecisionRunStatus.QUEUED.value,
+        DecisionRunStatus.RUNNING.value,
+    ):
+        raise APIError(
+            409,
+            "RUN_NOT_ACTIVE",
+            "Only a queued or running decision run can be marked failed.",
+            {"run_id": run_id, "status": run.status},
+        )
+    _mark_run_failed(
+        session,
+        organization_id=organization_id,
+        run=run,
+        decision=decision,
+        code=request.code,
+        message=request.message,
+    )
+    session.flush()
+    return decision_run_to_schema(run)
 
 
 def get_decision_workspace(

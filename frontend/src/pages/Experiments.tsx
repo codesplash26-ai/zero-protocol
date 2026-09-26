@@ -2,28 +2,25 @@ import React, { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Section } from '../components/ui/Section';
+import { LiveDataState } from '../components/ui/LiveDataState';
 import { ExperimentPortfolioSummary } from '../components/experiments/ExperimentPortfolioSummary';
 import { ExperimentListTable } from '../components/experiments/ExperimentListTable';
 import { ExperimentDetailDrawer } from '../components/experiments/ExperimentDetailDrawer';
 import { AddExperimentModal } from '../components/experiments/AddExperimentModal';
-import { ImportExperimentModal } from '../components/experiments/ImportExperimentModal';
-import { initialExperiments } from '../mock/experiments';
-import type { Experiment } from '../mock/pulseboard';
+import { useGovernorData } from '../state/governorContext';
+import { useApiResource } from '../hooks/useApiResource';
+import { api } from '../api/endpoints';
+import { describeApiError } from '../lib/apiErrors';
 import { Plus, UploadCloud } from 'lucide-react';
 
 export const Experiments: React.FC = () => {
-  const [experimentsList, setExperimentsList] = useState<Experiment[]>(initialExperiments);
-  const [selectedExperiment, setSelectedExperiment] = useState<Experiment | null>(null);
+  const { stateVersion, refreshedAt, error: overviewError, refresh } = useGovernorData();
+  const experiments = useApiResource('experiments', () => api.listExperiments(), refreshedAt);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const handleAddExperiment = (newExp: Experiment) => {
-    setExperimentsList((prev) => [newExp, ...prev]);
-  };
-
-  const handleConfirmImportedExperiment = (importedExp: Experiment) => {
-    setExperimentsList((prev) => [importedExp, ...prev]);
-  };
+  const list = experiments.data ?? [];
+  const selectedExperiment = list.find((item) => item.id === selectedId) ?? null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -36,7 +33,8 @@ export const Experiments: React.FC = () => {
             <Button
               variant="outline"
               icon={<UploadCloud size={16} />}
-              onClick={() => setIsImportModalOpen(true)}
+              disabled
+              title="Plan interpretation is not available: the backend has no import interpreter running yet."
             >
               Import Experiment Plan
             </Button>
@@ -44,6 +42,7 @@ export const Experiments: React.FC = () => {
               variant="primary"
               icon={<Plus size={16} />}
               onClick={() => setIsAddModalOpen(true)}
+              disabled={stateVersion === null}
             >
               Add Experiment
             </Button>
@@ -51,35 +50,36 @@ export const Experiments: React.FC = () => {
         }
       />
 
-      {/* 2. PORTFOLIO SUMMARY */}
-      <Section>
-        <ExperimentPortfolioSummary experiments={experimentsList} />
-      </Section>
-
-      {/* 3. MAIN EXPERIMENT PORTFOLIO TABLE */}
-      <Section>
-        <ExperimentListTable
-          experiments={experimentsList}
-          onSelectExperiment={(exp) => setSelectedExperiment(exp)}
+      {experiments.isLoading ? (
+        <LiveDataState kind="loading" title="Loading experiments…" />
+      ) : experiments.error && !experiments.data ? (
+        <LiveDataState
+          kind={experiments.error.isNetworkError || overviewError ? 'unavailable' : 'error'}
+          message={describeApiError(experiments.error)}
+          action={{ label: 'Retry', onClick: experiments.reload }}
         />
-      </Section>
+      ) : (
+        <>
+          {/* 2. PORTFOLIO SUMMARY */}
+          <Section>
+            <ExperimentPortfolioSummary experiments={list} />
+          </Section>
+
+          {/* 3. MAIN EXPERIMENT PORTFOLIO TABLE */}
+          <Section>
+            <ExperimentListTable experiments={list} onSelectExperiment={(exp) => setSelectedId(exp.id)} />
+          </Section>
+        </>
+      )}
 
       {/* 4. DRAWERS & MODALS */}
-      <ExperimentDetailDrawer
-        experiment={selectedExperiment}
-        onClose={() => setSelectedExperiment(null)}
-      />
+      <ExperimentDetailDrawer experiment={selectedExperiment} experiments={list} onClose={() => setSelectedId(null)} />
 
       <AddExperimentModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onAddExperiment={handleAddExperiment}
-      />
-
-      <ImportExperimentModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onConfirmImportedExperiment={handleConfirmImportedExperiment}
+        stateVersion={stateVersion}
+        onCreated={() => void refresh()}
       />
     </div>
   );

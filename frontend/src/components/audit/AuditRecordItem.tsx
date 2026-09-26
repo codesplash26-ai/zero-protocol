@@ -2,12 +2,13 @@ import React from 'react';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { AuditRecord } from '../../mock/pulseboard';
+import type { AuditEntry } from './auditEntry';
+import { formatRelativeTime, formatDateTime } from '../../lib/format';
 import { FileText, Cpu, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from 'lucide-react';
 
 export interface AuditRecordItemProps {
-  record: AuditRecord;
-  onInspect: (record: AuditRecord) => void;
+  record: AuditEntry;
+  onInspect: (record: AuditEntry) => void;
 }
 
 const formatToolCallName = (tool: string) => {
@@ -22,6 +23,7 @@ const formatToolCallName = (tool: string) => {
     handle_event: 'Ingest Event Trigger',
     evaluate_materiality: 'Evaluate Materiality Impact',
     issue_action_receipt: 'Issue Action Receipt',
+    calculate_materiality: 'Evaluate Materiality Impact',
   };
   return toolNameMap[tool] || tool.replace(/_/g, ' ');
 };
@@ -30,7 +32,9 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
   record,
   onInspect,
 }) => {
-  const getOptStatusBadge = (status: AuditRecord['optimization_status']) => {
+  const getOptStatusBadge = (status: AuditEntry['optimization_status']) => {
+    // Most records are not solver runs; show no badge rather than "UNKNOWN".
+    if (status === null) return null;
     switch (status) {
       case 'OPTIMAL':
         return <Badge variant="success"><CheckCircle2 size={12} style={{ marginRight: '4px' }} />OPTIMAL</Badge>;
@@ -38,9 +42,8 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
         return <Badge variant="info">FEASIBLE</Badge>;
       case 'INFEASIBLE':
         return <Badge variant="danger"><AlertTriangle size={12} style={{ marginRight: '4px' }} />INFEASIBLE</Badge>;
-      case 'UNKNOWN':
       default:
-        return <Badge variant="default">UNKNOWN</Badge>;
+        return <Badge variant="default">{status}</Badge>;
     }
   };
 
@@ -73,7 +76,7 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
                 <Badge variant="teal" size="sm">State v{record.state_version}</Badge>
                 {getOptStatusBadge(record.optimization_status)}
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  {record.timestamp}
+                  <span title={formatDateTime(record.created_at)}>{formatRelativeTime(record.created_at)}</span>
                 </span>
               </div>
 
@@ -97,7 +100,7 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', fontSize: '0.8125rem' }}>
         {/* Summary Description */}
         <div style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-          {record.summary}
+          {record.summary ?? 'No summary was returned for this record.'}
         </div>
 
         {/* Connected Entities Grid */}
@@ -126,7 +129,7 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
               Recommended Strategy
             </span>
             <span style={{ fontWeight: 700, color: 'var(--color-accent-blue)', fontFamily: 'monospace' }}>
-              {record.recommended_strategy_id}
+              {record.recommended_strategy_id ?? 'None'}
             </span>
           </div>
 
@@ -157,6 +160,9 @@ export const AuditRecordItem: React.FC<AuditRecordItemProps> = ({
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem' }}>
+            {record.tool_calls.length === 0 && (
+              <span style={{ color: 'var(--color-text-muted)' }}>No tool calls recorded for this entry.</span>
+            )}
             {record.tool_calls.map((tool, idx) => (
               <React.Fragment key={idx}>
                 {idx > 0 && <ArrowRight size={12} style={{ color: 'var(--color-text-muted)' }} />}

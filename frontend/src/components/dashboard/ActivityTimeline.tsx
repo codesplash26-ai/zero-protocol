@@ -1,11 +1,13 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { ActivityItem } from '../../mock/pulseboard';
+import type { AuditActivity } from '../../types/contract';
+import { formatRelativeTime, formatDateTime } from '../../lib/format';
 import { History, GitCommit } from 'lucide-react';
 
 export interface ActivityTimelineProps {
-  activities: ActivityItem[];
+  /** Most recent audit entries from GET /overview, newest first. */
+  activities: AuditActivity[];
 }
 
 export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities }) => {
@@ -45,11 +47,16 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities }
           </div>
         </div>
 
-        <Badge variant="default">Seeded Session State</Badge>
+        <Badge variant="default">Latest {activities.length} audit entries</Badge>
       </CardHeader>
 
       <CardContent style={{ marginTop: '0.75rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          {activities.length === 0 && (
+            <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', padding: '0.5rem 0' }}>
+              No Governor activity has been recorded yet.
+            </div>
+          )}
           {activities.map((act) => (
             <div
               key={act.id}
@@ -73,8 +80,9 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities }
                   border: '1px solid var(--color-border)',
                   flexShrink: 0,
                 }}
+                title={formatDateTime(act.created_at)}
               >
-                {act.timestamp}
+                {formatRelativeTime(act.created_at)}
               </div>
 
               <div style={{ flex: 1 }}>
@@ -85,7 +93,8 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ activities }
                   </span>
                 </div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginTop: '0.125rem' }}>
-                  {act.details}
+                  {act.summary}
+                  <span style={{ color: 'var(--color-text-muted)', marginLeft: '0.375rem' }}>· state v{act.state_version}</span>
                 </div>
               </div>
             </div>

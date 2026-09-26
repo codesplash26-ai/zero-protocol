@@ -1,39 +1,52 @@
 import React from 'react';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
-import type { Experiment } from '../../mock/pulseboard';
-import { X, GitBranch, Target, ShieldCheck, AlertCircle } from 'lucide-react';
+import type { Experiment } from '../../types/contract';
+import { ExperimentStatusBadge } from './ExperimentStatusBadge';
+import { useApiResource } from '../../hooks/useApiResource';
+import { api } from '../../api/endpoints';
+import { formatUsd, formatDateTime } from '../../lib/format';
+import { describeApiError } from '../../lib/apiErrors';
+import { X, GitBranch, Target, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 
 export interface ExperimentDetailDrawerProps {
   experiment: Experiment | null;
+  /** All experiments, used to show whether each dependency is satisfied. */
+  experiments: Experiment[];
   onClose: () => void;
 }
 
-export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
-  experiment,
-  onClose,
-}) => {
+const sectionLabel: React.CSSProperties = {
+  fontSize: '0.6875rem',
+  fontWeight: 700,
+  color: 'var(--color-text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  marginBottom: '0.375rem',
+};
+
+const tile: React.CSSProperties = {
+  padding: '0.75rem',
+  borderRadius: 'var(--radius-md)',
+  backgroundColor: 'var(--color-bg)',
+  border: '1px solid var(--color-border)',
+};
+
+const OUTCOME_LABELS: Record<Experiment['outcome'], string> = {
+  PENDING: 'Pending',
+  SUCCESS: 'Success',
+  FAILURE: 'Failure',
+};
+
+export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({ experiment, experiments, onClose }) => {
+  const evidence = useApiResource(
+    experiment ? `evidence:${experiment.id}` : null,
+    () => api.listEvidence({ experiment_id: experiment!.id, limit: 200 }),
+  );
+
   if (!experiment) return null;
 
-  const getStatusBadge = (exp: Experiment) => {
-    if (exp.dependencies && exp.dependencies.length > 0) {
-      return <Badge variant="teal">Conditional</Badge>;
-    }
-    switch (exp.status) {
-      case 'PROPOSED':
-        return <Badge variant="default">Proposed</Badge>;
-      case 'APPROVED':
-        return <Badge variant="teal">Approved</Badge>;
-      case 'RUNNING':
-        return <Badge variant="info">Running</Badge>;
-      case 'COMPLETED':
-        return <Badge variant="success">Completed</Badge>;
-      case 'REJECTED':
-        return <Badge variant="danger">Rejected</Badge>;
-      default:
-        return <Badge variant="default">{exp.status}</Badge>;
-    }
-  };
+  const byId = new Map(experiments.map((item) => [item.id, item]));
 
   return (
     <>
@@ -79,11 +92,15 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-              {getStatusBadge(experiment)}
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                ID: {experiment.id}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+              <ExperimentStatusBadge experiment={experiment} />
+              {experiment.dependencies.length > 0 && (
+                <Badge variant="teal" size="sm">
+                  <GitBranch size={12} />
+                  <span>Gated on {experiment.dependencies.join(', ')}</span>
+                </Badge>
+              )}
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>ID: {experiment.id}</span>
             </div>
             <h2
               style={{
@@ -103,176 +120,103 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
 
         {/* Content */}
         <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Missing Fields Banner if any */}
-          {experiment.missing_fields && experiment.missing_fields.length > 0 && (
-            <div
-              style={{
-                padding: '0.75rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-warning-bg)',
-                border: '1px solid #FDE68A',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.5rem',
-                fontSize: '0.8125rem',
-                color: 'var(--color-warning)',
-              }}
-            >
-              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.125rem' }} />
-              <div>
-                <strong>Missing Information:</strong> {experiment.missing_fields.join(', ')}
-              </div>
-            </div>
-          )}
-
-          {/* Objective & Description */}
+          {/* Decision role */}
           <div>
-            <div
-              style={{
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                color: 'var(--color-text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginBottom: '0.375rem',
-              }}
-            >
-              OBJECTIVE & DESCRIPTION
+            <div style={{ ...sectionLabel, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Target size={12} style={{ color: 'var(--color-accent-blue)' }} />
+              <span>DECISION ROLE</span>
             </div>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-text-main)', lineHeight: 1.5 }}>
-              {experiment.objective || experiment.short_description || 'Not specified'}
+              {experiment.decision_role ?? <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
             </p>
-          </div>
-
-          {/* Hypothesis */}
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-bg)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                color: 'var(--color-accent-blue)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginBottom: '0.25rem',
-              }}
-            >
-              CORE HYPOTHESIS
-            </div>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: 1.5 }}>
-              "{experiment.hypothesis || 'Not specified'}"
-            </div>
           </div>
 
           {/* Core Resource Metrics */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                ESTIMATED COST (USD)
-              </div>
+            <div style={tile}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>ESTIMATED COST (USD)</div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.cost_usd !== null ? `$${experiment.cost_usd.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {formatUsd(experiment.cost_usd)}
               </div>
             </div>
-
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                ENGINEERING EFFORT
-              </div>
+            <div style={tile}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>ENGINEERING EFFORT</div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.engineering_hours !== null ? `${experiment.engineering_hours}h` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.engineering_hours}h
               </div>
             </div>
-
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                TRAFFIC REQUIRED
-              </div>
+            <div style={tile}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>TRAFFIC REQUIRED</div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.traffic_required !== null ? `${experiment.traffic_required.toLocaleString()} sessions` : <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+                {experiment.traffic_required.toLocaleString()} sessions
               </div>
             </div>
-
-            <div
-              style={{
-                padding: '0.75rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                ESTIMATED DURATION
-              </div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.duration || <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+            <div style={tile}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>OUTCOME</div>
+              <div
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  marginTop: '0.125rem',
+                  color:
+                    experiment.outcome === 'SUCCESS'
+                      ? 'var(--color-success)'
+                      : experiment.outcome === 'FAILURE'
+                        ? 'var(--color-danger)'
+                        : 'var(--color-text-muted)',
+                }}
+              >
+                {OUTCOME_LABELS[experiment.outcome]}
               </div>
             </div>
           </div>
 
           {/* Dependencies */}
           <div>
-            <div
-              style={{
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                color: 'var(--color-text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginBottom: '0.375rem',
-              }}
-            >
-              DEPENDENCIES
-            </div>
-            {experiment.dependencies && experiment.dependencies.length > 0 ? (
+            <div style={sectionLabel}>DEPENDENCIES</div>
+            {experiment.dependencies.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                {experiment.dependencies.map((dep, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'var(--color-governor-teal-light)',
-                      border: '1px solid #99F6E4',
-                      fontSize: '0.8125rem',
-                      color: 'var(--color-governor-teal)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <GitBranch size={14} />
-                    <span>Prerequisite Experiment ID: {dep}</span>
-                  </div>
-                ))}
+                {experiment.dependencies.map((dep) => {
+                  const prerequisite = byId.get(dep);
+                  // Contract rule: only COMPLETED + SUCCESS satisfies a dependency.
+                  const satisfied = prerequisite?.status === 'COMPLETED' && prerequisite.outcome === 'SUCCESS';
+                  return (
+                    <div
+                      key={dep}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--color-governor-teal-light)',
+                        border: '1px solid #99F6E4',
+                        fontSize: '0.8125rem',
+                        color: 'var(--color-governor-teal)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <GitBranch size={14} />
+                        Prerequisite {dep}
+                        {prerequisite ? ` (${prerequisite.name})` : ''}
+                      </span>
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontSize: '0.75rem',
+                          color: satisfied ? 'var(--color-success)' : 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {satisfied ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                        {satisfied ? 'Satisfied' : 'Not yet satisfied'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
@@ -281,48 +225,51 @@ export const ExperimentDetailDrawer: React.FC<ExperimentDetailDrawerProps> = ({
             )}
           </div>
 
-          {/* Success Threshold & Decision Unlocked */}
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-bg)',
-              border: '1px solid var(--color-border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                SUCCESS THRESHOLD
+          {/* Evidence recorded for this experiment */}
+          <div>
+            <div style={sectionLabel}>RECORDED EVIDENCE</div>
+            {evidence.isLoading ? (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>Loading evidence…</div>
+            ) : evidence.error ? (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--color-danger)' }}>{describeApiError(evidence.error)}</div>
+            ) : evidence.data && evidence.data.items.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {evidence.data.items.map((item) => (
+                  <div key={item.id} style={{ ...tile, padding: '0.75rem 0.875rem' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: '0.25rem',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
+                        {item.source} · {item.id}
+                      </span>
+                      <span>Quality: {item.quality}</span>
+                    </div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: 1.5 }}>
+                      {item.content}
+                    </div>
+                    {item.retrieved_at && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                        Retrieved {formatDateTime(item.retrieved_at)}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-                {experiment.success_threshold || <span style={{ color: 'var(--color-text-muted)' }}>Not specified</span>}
+            ) : (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                No evidence has been recorded for this experiment.
               </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.625rem' }}>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Target size={12} style={{ color: 'var(--color-accent-blue)' }} />
-                <span>DECISION ROLE</span>
-              </div>
-              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-accent-blue)', marginTop: '0.125rem' }}>
-                {experiment.decision_role}
-              </div>
-            </div>
+            )}
           </div>
-
-          {/* Provenance */}
-          {experiment.provenance && (
-            <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                <ShieldCheck size={14} style={{ color: 'var(--color-governor-teal)' }} />
-                <span>Source: {experiment.provenance.source}</span>
-              </div>
-              <span>Quality: {experiment.provenance.quality}</span>
-            </div>
-          )}
         </div>
       </aside>
     </>

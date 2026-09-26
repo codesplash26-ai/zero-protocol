@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { EvidenceItem } from '../../mock/pulseboard';
+import type { EvidenceItem } from '../../types/contract';
+import { formatDateTime } from '../../lib/format';
 import { FileCheck, ShieldCheck } from 'lucide-react';
 
 export interface EvidencePanelProps {
@@ -45,11 +46,16 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({ evidence }) => {
           </div>
         </div>
 
-        <Badge variant="teal">Verified Inputs</Badge>
+        <Badge variant="teal">{evidence.length} Evidence Items</Badge>
       </CardHeader>
 
       <CardContent style={{ marginTop: '0.75rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          {evidence.length === 0 && (
+            <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+              No evidence has been recorded for this goal.
+            </div>
+          )}
           {evidence.map((item) => (
             <div
               key={item.id}
@@ -86,6 +92,22 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({ evidence }) => {
               {item.relevance && (
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.375rem' }}>
                   <strong>Relevance:</strong> {item.relevance}
+                </div>
+              )}
+              {(item.retrieved_at || item.freshness || item.trust_level) && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                  {[
+                    item.retrieved_at && `Retrieved ${formatDateTime(item.retrieved_at)}`,
+                    item.freshness && `Freshness: ${item.freshness}`,
+                    item.trust_level && `Trust: ${item.trust_level}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              )}
+              {item.conflicts.length > 0 && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginTop: '0.25rem' }}>
+                  <strong>Conflicts:</strong> {item.conflicts.join(', ')}
                 </div>
               )}
             </div>

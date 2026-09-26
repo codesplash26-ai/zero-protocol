@@ -11,6 +11,8 @@ from schemas.models import (
     AuditRecord,
     CandidateStrategy,
     ConsequenceResult,
+    DecisionRun,
+    DecisionRunClaim,
     Event,
     EventCreateRequest,
     Experiment,
@@ -413,6 +415,75 @@ class BackendClient:
                     request_id=request_id,
                 )
             cursor = page.next_cursor
+
+    def claim_decision_run(
+        self,
+    ) -> DecisionRunClaim:
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/internal/decision-runs/claim",
+                headers=self._internal_headers(),
+            )
+        )
+
+        return self._validate_response(
+            DecisionRunClaim,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def get_decision_run(
+        self,
+        run_id: str,
+    ) -> DecisionRun:
+        payload, status_code, request_id = (
+            self._request_json(
+                "GET",
+                f"{API_PREFIX}/decision-runs/{run_id}",
+            )
+        )
+
+        return self._validate_response(
+            DecisionRun,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def fail_decision_run(
+        self,
+        run_id: str,
+        *,
+        code: str,
+        message: str,
+    ) -> DecisionRun:
+        payload, status_code, request_id = (
+            self._request_json(
+                "POST",
+                f"{API_PREFIX}/internal/decision-runs/{run_id}/fail",
+                json={
+                    "code": code[:64],
+                    "message": message[:500],
+                },
+                headers=self._internal_headers(),
+            )
+        )
+
+        return self._validate_response(
+            DecisionRun,
+            payload,
+            status_code=status_code,
+            request_id=request_id,
+        )
+
+    def _internal_headers(self) -> dict[str, str]:
+        if not self.internal_service_key:
+            return {}
+        return {
+            "X-Internal-Service-Key": self.internal_service_key,
+        }
 
     def _request_json(
         self,

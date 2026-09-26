@@ -1,12 +1,12 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { CommitmentItem, OrganizationState } from '../../mock/pulseboard';
+import type { Commitment, OrganizationState } from '../../types/contract';
 import { Cpu, ShieldAlert, Lock, CheckCircle2 } from 'lucide-react';
 
 export interface ResourceAllocationSectionProps {
   organizationState: OrganizationState;
-  commitments: CommitmentItem[];
+  commitments: Commitment[];
 }
 
 export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps> = ({
@@ -19,8 +19,12 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
     available_engineering_hours,
   } = organizationState;
 
-  const committedPercentage = Math.round((reserved_engineering_hours / engineering_capacity_hours) * 100);
-  const availablePercentage = Math.round((available_engineering_hours / engineering_capacity_hours) * 100);
+  const percentOf = (hours: number) =>
+    engineering_capacity_hours > 0 ? Math.round((hours / engineering_capacity_hours) * 100) : 0;
+  const committedPercentage = percentOf(reserved_engineering_hours);
+  const availablePercentage = percentOf(available_engineering_hours);
+  // Protected work (e.g. Enterprise SSO) comes first; reserved hours also include running experiments.
+  const primaryCommitment = commitments.find((item) => item.protected) ?? commitments[0] ?? null;
 
   return (
     <div
@@ -88,7 +92,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 backgroundColor: 'var(--color-primary)',
                 transition: 'width 0.3s ease',
               }}
-              title={`Enterprise SSO Committed: ${reserved_engineering_hours}h (${committedPercentage}%)`}
+              title={`Reserved: ${reserved_engineering_hours}h (${committedPercentage}%)`}
             />
             <div
               style={{
@@ -120,7 +124,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: 'var(--color-primary)' }} />
-                <span>COMMITTED (SSO)</span>
+                <span>RESERVED</span>
               </div>
               <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-text-main)', marginTop: '0.25rem' }}>
                 {reserved_engineering_hours}h
@@ -184,15 +188,17 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 PROTECTED COMMITMENT
               </div>
               <CardTitle style={{ fontSize: '1.0625rem', marginTop: '0.125rem' }}>
-                {commitments[0]?.name || 'Enterprise SSO'}
+                {primaryCommitment?.name ?? 'No commitments recorded'}
               </CardTitle>
             </div>
           </div>
 
-          <Badge variant="danger">
-            <Lock size={12} />
-            <span>Critical</span>
-          </Badge>
+          {primaryCommitment && (
+            <Badge variant={primaryCommitment.priority === 'CRITICAL' ? 'danger' : 'warning'}>
+              <Lock size={12} />
+              <span>{primaryCommitment.priority === 'CRITICAL' ? 'Critical' : primaryCommitment.priority === 'HIGH' ? 'High' : 'Medium'}</span>
+            </Badge>
+          )}
         </CardHeader>
 
         <CardContent style={{ marginTop: '0.75rem' }}>
@@ -210,7 +216,7 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
                 Committed Allocation:
               </span>
               <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
-                {commitments[0]?.hours_committed || 36}h
+                {primaryCommitment ? `${primaryCommitment.reserved_engineering_hours}h` : '—'}
               </span>
             </div>
           </div>
@@ -226,7 +232,10 @@ export const ResourceAllocationSection: React.FC<ResourceAllocationSectionProps>
             }}
           >
             <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-            <span>{commitments[0]?.notes || 'Protected from experiment allocation'}</span>
+            <span>
+              {primaryCommitment?.notes ??
+                (primaryCommitment?.protected ? 'Protected from experiment allocation.' : 'No notes recorded.')}
+            </span>
           </div>
         </CardContent>
       </Card>

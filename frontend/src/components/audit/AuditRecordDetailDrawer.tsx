@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { AuditRecord } from '../../mock/pulseboard';
+import type { AuditEntry } from './auditEntry';
+import { formatDateTime } from '../../lib/format';
 import { FileText, X, Copy, Check, Code } from 'lucide-react';
 
 export interface AuditRecordDetailDrawerProps {
-  record: AuditRecord | null;
+  record: AuditEntry | null;
   onClose: () => void;
 }
 
@@ -171,10 +172,10 @@ export const AuditRecordDetailDrawer: React.FC<AuditRecordDetailDrawerProps> = (
               {/* Title & Summary */}
               <div>
                 <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                  {record.title}
+                  {record.title ?? `Audit Record ${record.id}`}
                 </div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginTop: '0.375rem', lineHeight: 1.5 }}>
-                  {record.summary}
+                  {record.summary ?? 'No summary was returned for this record.'} · {formatDateTime(record.created_at)}
                 </div>
               </div>
 
@@ -209,12 +210,12 @@ export const AuditRecordDetailDrawer: React.FC<AuditRecordDetailDrawerProps> = (
 
                   <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>optimization_status</div>
-                    <strong style={{ color: 'var(--color-success)', fontFamily: 'monospace' }}>{record.optimization_status}</strong>
+                    <strong style={{ color: 'var(--color-success)', fontFamily: 'monospace' }}>{record.optimization_status ?? 'null'}</strong>
                   </div>
 
                   <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>recommended_strategy_id</div>
-                    <strong style={{ color: 'var(--color-accent-blue)', fontFamily: 'monospace' }}>{record.recommended_strategy_id}</strong>
+                    <strong style={{ color: 'var(--color-accent-blue)', fontFamily: 'monospace' }}>{record.recommended_strategy_id ?? 'null'}</strong>
                   </div>
 
                   <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
@@ -242,6 +243,9 @@ export const AuditRecordDetailDrawer: React.FC<AuditRecordDetailDrawerProps> = (
                   candidate_strategy_ids
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {record.candidate_strategy_ids.length === 0 && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>[]</span>
+                  )}
                   {record.candidate_strategy_ids.map(stratId => (
                     <span
                       key={stratId}
@@ -267,6 +271,9 @@ export const AuditRecordDetailDrawer: React.FC<AuditRecordDetailDrawerProps> = (
                   tool_calls Execution Sequence
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                  {record.tool_calls.length === 0 && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>[]</span>
+                  )}
                   {record.tool_calls.map((tool, idx) => (
                     <div
                       key={idx}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../ui/Card';
-import type { Experiment } from '../../mock/pulseboard';
+import type { Experiment } from '../../types/contract';
 import { FlaskConical, FileText, GitBranch, PlayCircle } from 'lucide-react';
 
 export interface ExperimentPortfolioSummaryProps {
@@ -12,7 +12,7 @@ export const ExperimentPortfolioSummary: React.FC<ExperimentPortfolioSummaryProp
 }) => {
   const total = experiments.length;
   const proposed = experiments.filter((e) => e.status === 'PROPOSED').length;
-  const conditional = experiments.filter((e) => e.dependencies && e.dependencies.length > 0).length;
+  const conditional = experiments.filter((e) => e.dependencies.length > 0).length;
   const running = experiments.filter((e) => e.status === 'RUNNING').length;
 
   return (

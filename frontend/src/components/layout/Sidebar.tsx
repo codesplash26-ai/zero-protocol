@@ -12,6 +12,8 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
+import { useGovernorData } from '../../state/governorContext';
+import { describeGovernor } from '../../lib/governorStatus';
 
 export interface SidebarProps {
   mobileOpen: boolean;
@@ -26,6 +28,9 @@ interface NavItem {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) => {
+  const { governorStatus, isLoading } = useGovernorData();
+  const governorDisplay = describeGovernor(governorStatus, isLoading);
+
   const navItems: NavItem[] = [
     { name: 'Overview', path: '/', icon: <LayoutDashboard size={18} /> },
     { name: 'Decision', path: '/decision', icon: <Compass size={18} /> },
@@ -240,16 +245,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  backgroundColor: 'var(--color-governor-teal-accent)',
+                  backgroundColor: governorDisplay.dot,
                 }}
               />
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: '#5EEAD4', fontWeight: 600, lineHeight: 1.2 }}>
-                Governor Engine Active
+                {governorDisplay.title}
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'rgba(94, 234, 212, 0.7)' }}>
-                Decision Ready
+                {governorDisplay.detail}
               </div>
             </div>
           </div>

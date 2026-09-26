@@ -7,6 +7,9 @@ from langgraph.graph import (
 from nodes.check_approval import (
     check_approval_node,
 )
+from nodes.detect_newly_unlocked import (
+    detect_newly_unlocked_node,
+)
 from nodes.evaluate_candidates import (
     evaluate_candidates_node,
 )
@@ -43,7 +46,12 @@ from nodes.strategic_evaluation import (
 from state import AgentState
 
 
-def build_graph():
+def build_graph(detect_unlocked: bool = False):
+    """Build the Governor decision graph.
+
+    Replan runs set detect_unlocked so strategies can continue from
+    experiments whose dependencies have just completed successfully.
+    """
 
     workflow = StateGraph(
         AgentState
@@ -89,10 +97,24 @@ def build_graph():
         "load_context",
     )
 
-    workflow.add_edge(
-        "load_context",
-        "interpret_goal",
-    )
+    if detect_unlocked:
+        workflow.add_node(
+            "detect_newly_unlocked",
+            detect_newly_unlocked_node,
+        )
+        workflow.add_edge(
+            "load_context",
+            "detect_newly_unlocked",
+        )
+        workflow.add_edge(
+            "detect_newly_unlocked",
+            "interpret_goal",
+        )
+    else:
+        workflow.add_edge(
+            "load_context",
+            "interpret_goal",
+        )
 
     workflow.add_edge(
         "interpret_goal",
