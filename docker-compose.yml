@@ -80,9 +80,11 @@ services:
 
     environment:
 
-      BACKEND_URL: http://backend:8000
+      BACKEND_BASE_URL: http://backend:8000
 
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-local-development-only}
+
+      AGENT_DECISION_ID: ${AGENT_DECISION_ID}
 
     working_dir: /app
 
