@@ -5,6 +5,10 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import type { DecisionRun } from '../../types/contract';
 import { formatRelativeTime } from '../../lib/format';
+import { TechnicalDetails } from '../ui/TechnicalDetails';
+import { useGovernorData } from '../../state/governorContext';
+import { describeRunFailure } from '../../lib/runFailure';
+import { findNothingFits } from '../../lib/capacity';
 
 const RUN_TYPE_LABELS: Record<DecisionRun['run_type'], string> = {
   INITIAL: 'Initial evaluation',
@@ -20,6 +24,7 @@ export interface RunStatusCardProps {
 
 /** A Governor run that is in progress or failed; succeeded runs show the recommendation instead. */
 export const RunStatusCard: React.FC<RunStatusCardProps> = ({ run, onRetry, retryDisabled }) => {
+  const { overview } = useGovernorData();
   const failed = run.status === 'FAILED';
 
   return (
@@ -57,10 +62,18 @@ export const RunStatusCard: React.FC<RunStatusCardProps> = ({ run, onRetry, retr
       <CardContent style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
         {failed ? (
           <>
-            <div>
-              <strong>{run.error?.code ?? 'UNKNOWN'}:</strong> {run.error?.message ?? 'The run failed without an error message.'}
+            <div style={{ color: 'var(--color-text-main)' }}>
+              <strong>{describeRunFailure(run, overview).title}</strong> {describeRunFailure(run, overview).message}
             </div>
-            {onRetry && (
+            {run.error && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <TechnicalDetails label="Raw error">
+                  <strong>{run.error.code}:</strong> {run.error.message}
+                </TechnicalDetails>
+              </div>
+            )}
+            {/* Retrying cannot help while no experiment fits the resources left. */}
+            {onRetry && !(overview && findNothingFits(overview)) && (
               <div style={{ marginTop: '0.75rem' }}>
                 <Button variant="outline" size="sm" onClick={onRetry} disabled={retryDisabled}>
                   Run Governor again

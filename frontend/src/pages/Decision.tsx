@@ -10,6 +10,7 @@ import { EvidencePanel } from '../components/decision/EvidencePanel';
 import { RecommendationBanner } from '../components/decision/RecommendationBanner';
 import { RunStatusCard } from '../components/decision/RunStatusCard';
 import { TechnicalDetails } from '../components/ui/TechnicalDetails';
+import { ChangeGoalModal } from '../components/decision/ChangeGoalModal';
 import { Term } from '../components/ui/Term';
 import { useGovernorData } from '../state/governorContext';
 import { useApiResource } from '../hooks/useApiResource';
@@ -19,9 +20,14 @@ import { ApiError } from '../api/client';
 import { describeApiError } from '../lib/apiErrors';
 import type { Goal } from '../types/contract';
 import { experimentsMissingFromPlan } from '../lib/nextStep';
-import { Target, Calendar, Lock, Play, RefreshCw, AlertTriangle } from 'lucide-react';
+import { findNothingFits } from '../lib/capacity';
+import { Target, Calendar, Lock, Play, RefreshCw, AlertTriangle, Pencil } from 'lucide-react';
 
-const GoalCard: React.FC<{ goal: Goal; primaryConstraint: string | null }> = ({ goal, primaryConstraint }) => (
+const GoalCard: React.FC<{ goal: Goal; primaryConstraint: string | null; onChangeGoal?: () => void }> = ({
+  goal,
+  primaryConstraint,
+  onChangeGoal,
+}) => (
   <Card padding="lg" style={{ borderLeft: '4px solid var(--color-accent-blue)' }}>
     <CardHeader>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
@@ -55,7 +61,12 @@ const GoalCard: React.FC<{ goal: Goal; primaryConstraint: string | null }> = ({ 
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {onChangeGoal && (
+          <Button variant="outline" size="sm" icon={<Pencil size={14} />} onClick={onChangeGoal}>
+            Change goal
+          </Button>
+        )}
         <Badge variant="info">
           <Calendar size={12} />
           <span>Horizon: {goal.horizon_weeks} weeks</span>
@@ -83,10 +94,21 @@ const GoalCard: React.FC<{ goal: Goal; primaryConstraint: string | null }> = ({ 
 );
 
 export const Decision: React.FC = () => {
-  const { overview, decisionId, currentRun, stateVersion, isLoading, error, refresh, trackRun, refreshedAt } =
-    useGovernorData();
+  const {
+    overview,
+    decisionId,
+    goalChanged,
+    currentRun,
+    stateVersion,
+    isLoading,
+    error,
+    refresh,
+    trackRun,
+    refreshedAt,
+  } = useGovernorData();
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Refetch whenever the provider reloads /overview (after runs and mutations).
@@ -104,7 +126,9 @@ export const Decision: React.FC = () => {
   const activeGoal = overview?.active_goal ?? null;
   const runForDecision = currentRun && currentRun.decision_id === decisionId ? currentRun : null;
   const running = isRunActive(runForDecision) || isRunActive(workspace.data?.latest_run);
-  const canStart = !!activeGoal && stateVersion !== null && !running && !starting;
+  // Every run would fail when no remaining experiment fits the resources left.
+  const nothingFits = overview ? findNothingFits(overview) : null;
+  const canStart = !!activeGoal && stateVersion !== null && !running && !starting && !nothingFits;
   const missingFromPlan = experimentsMissingFromPlan(
     workspace.data?.recommendation ?? null,
     overview?.experiments ?? [],
@@ -192,12 +216,78 @@ export const Decision: React.FC = () => {
         </div>
       )}
 
-      {/* 1. GOAL & CONSTRAINTS SUMMARY */}
-      {(ws?.goal ?? activeGoal) && (
+      {/* 1. GOAL & CONSTRAINTS SUMMARY (a newly set goal replaces the plan's goal) */}
+      {(goalChanged ? activeGoal : (ws?.goal ?? activeGoal)) && (
         <Section>
-          <GoalCard goal={(ws?.goal ?? activeGoal)!} primaryConstraint={ws?.primary_constraint ?? null} />
+          <GoalCard
+            goal={(goalChanged ? activeGoal : (ws?.goal ?? activeGoal))!}
+            primaryConstraint={goalChanged ? null : (ws?.primary_constraint ?? null)}
+            onChangeGoal={running ? undefined : () => setGoalDialogOpen(true)}
+          />
         </Section>
       )}
+
+      {goalChanged && ws && (
+        <div
+          role="status"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            padding: '0.875rem 1rem',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-warning-bg)',
+            border: '1px solid #FDE68A',
+            borderLeft: '5px solid var(--color-warning)',
+            fontSize: '0.875rem',
+            color: 'var(--color-text-main)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <AlertTriangle size={18} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+            <span>
+              <strong>New goal set.</strong> The plan below was made for the previous goal: “{ws.goal.text}” Run the
+              Governor to plan for the new goal.
+            </span>
+          </div>
+          <Button variant="teal" size="sm" icon={<Play size={14} />} onClick={handleRunGovernor} disabled={!canStart}>
+            {starting ? 'Starting…' : 'Run Governor'}
+          </Button>
+        </div>
+      )}
+
+      {nothingFits && !running && latestRun?.status !== 'FAILED' && (
+        <div
+          role="status"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.625rem',
+            padding: '0.875rem 1rem',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-accent-blue-light)',
+            border: '1px solid #BFDBFE',
+            fontSize: '0.875rem',
+            color: 'var(--color-text-main)',
+          }}
+        >
+          <AlertTriangle size={18} style={{ color: 'var(--color-accent-blue)', flexShrink: 0, marginTop: '0.125rem' }} />
+          <span>
+            <strong>Nothing left for the Governor to plan.</strong> {nothingFits.message}
+          </span>
+        </div>
+      )}
+
+      <ChangeGoalModal
+        isOpen={goalDialogOpen}
+        onClose={() => setGoalDialogOpen(false)}
+        currentGoal={activeGoal}
+        commitments={overview.commitments}
+        stateVersion={stateVersion}
+        onCreated={() => void refresh()}
+      />
 
       {!decisionId ? (
         <LiveDataState
@@ -233,7 +323,7 @@ export const Decision: React.FC = () => {
           )}
 
           {/* 2b. PLAN IS MISSING EXPERIMENTS ADDED SINCE IT WAS GENERATED */}
-          {recommendation && missingFromPlan.length > 0 && !isRunActive(latestRun) && (
+          {recommendation && !goalChanged && missingFromPlan.length > 0 && !isRunActive(latestRun) && (
             <div
               role="alert"
               style={{

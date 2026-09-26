@@ -31,6 +31,8 @@ export interface GovernorData {
    * owns the backend's latest recommendation. Null when none is known.
    */
   decisionId: string | null;
+  /** True when the founder set a new goal after the current plan was made. */
+  goalChanged: boolean;
   /** Run currently being polled (active backend run or a tracked run). */
   currentRun: DecisionRun | null;
   isRunPolling: boolean;

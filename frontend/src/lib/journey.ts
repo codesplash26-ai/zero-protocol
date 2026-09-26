@@ -21,6 +21,7 @@ export function computeJourney(
   overview: OverviewSnapshot,
   currentRun: DecisionRun | null,
   materialEvents: Event[],
+  goalChanged = false,
 ): JourneyPosition {
   const { active_goal: goal, latest_recommendation: recommendation, experiments, governor_status: governor } = overview;
   const stateVersion = overview.organization_state.state_version;
@@ -28,6 +29,9 @@ export function computeJourney(
   if (!goal) return { current: 0, caption: 'Set a measurable goal to begin.', busy: false };
   if (isRunActive(currentRun) || governor.state === 'RUNNING' || governor.state === 'REPLANNING') {
     return { current: 1, caption: 'The Governor is weighing strategies right now.', busy: true };
+  }
+  if (goalChanged) {
+    return { current: 1, caption: 'Your goal changed — run the Governor to plan for it.', busy: false };
   }
   if (materialEvents.some((event) => isUnansweredMaterialEvent(event, stateVersion, recommendation))) {
     return { current: 5, caption: 'A material change arrived — replan so the plan adapts.', busy: false };

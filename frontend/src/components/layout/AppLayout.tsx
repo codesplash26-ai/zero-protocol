@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import { PageErrorBoundary } from './PageErrorBoundary';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ConnectionBanner } from './ConnectionBanner';
@@ -9,6 +10,7 @@ import { ResetDemoDialog } from './ResetDemoDialog';
 import { isGuideOpenStored, storeGuideOpen } from '../../lib/demoGuide';
 
 export const AppLayout: React.FC = () => {
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [guideOpen, setGuideOpen] = useState(isGuideOpenStored);
@@ -49,7 +51,9 @@ export const AppLayout: React.FC = () => {
         >
           <ConnectionBanner />
           <NextStepBar />
-          <Outlet />
+          <PageErrorBoundary key={location.pathname}>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
       </div>
 

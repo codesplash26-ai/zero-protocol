@@ -92,14 +92,37 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await refresh();
   }, [refresh]);
 
+  const backendActiveRun = backendActiveRunId && poll.run?.id === backendActiveRunId ? poll.run : null;
+  const decisionId =
+    backendActiveRun?.decision_id ??
+    trackedRun?.decision_id ??
+    settledRun?.decision_id ??
+    overview?.latest_recommendation?.decision_id ??
+    null;
+
+  // The goal the current plan was made for; recommendations do not carry it, the workspace does.
+  const [planGoal, setPlanGoal] = useState<{ decisionId: string; goalId: string } | null>(null);
+  const knownPlanDecision = planGoal?.decisionId ?? null;
+  useEffect(() => {
+    if (!decisionId || knownPlanDecision === decisionId) return;
+    let cancelled = false;
+    api.getDecisionWorkspace(decisionId).then(
+      (workspace) => {
+        if (!cancelled) setPlanGoal({ decisionId, goalId: workspace.goal.id });
+      },
+      () => {
+        // Guidance only; the Decision page reports workspace errors itself.
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [decisionId, knownPlanDecision]);
+  const planGoalId = planGoal && planGoal.decisionId === decisionId ? planGoal.goalId : null;
+  const activeGoalId = overview?.active_goal?.id ?? null;
+  const goalChanged = !!activeGoalId && !!planGoalId && planGoalId !== activeGoalId;
+
   const value = useMemo<GovernorData>(() => {
-    const backendActiveRun = backendActiveRunId && poll.run?.id === backendActiveRunId ? poll.run : null;
-    const decisionId =
-      backendActiveRun?.decision_id ??
-      trackedRun?.decision_id ??
-      settledRun?.decision_id ??
-      overview?.latest_recommendation?.decision_id ??
-      null;
     return {
       overview,
       materialEvents: overviewState.materialEvents,
@@ -109,6 +132,7 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       latestRecommendation: overview?.latest_recommendation ?? null,
       pendingApprovalCount: overview?.pending_approval_count ?? null,
       decisionId,
+      goalChanged,
       currentRun,
       isRunPolling: poll.isPolling,
       isLoading: !overviewState.settled,
@@ -124,12 +148,10 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     error,
     overviewState.settled,
     overviewState.refreshedAt,
-    backendActiveRunId,
-    poll.run,
+    decisionId,
+    goalChanged,
     poll.isPolling,
     currentRun,
-    trackedRun,
-    settledRun,
     refresh,
     trackRun,
     resetDemo,

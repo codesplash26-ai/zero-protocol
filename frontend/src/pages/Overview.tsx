@@ -17,7 +17,7 @@ import { formatUsd } from '../lib/format';
 import { DollarSign, Cpu, Users, Lock } from 'lucide-react';
 
 export const Overview: React.FC = () => {
-  const { overview, governorStatus, isLoading, error, refresh, currentRun, materialEvents } = useGovernorData();
+  const { overview, governorStatus, isLoading, error, refresh, currentRun, materialEvents, goalChanged } = useGovernorData();
 
   // Never render stale or placeholder values as the startup's current state.
   if (!overview || error) {
@@ -50,7 +50,7 @@ export const Overview: React.FC = () => {
         }
       />
 
-      <JourneyStrip position={computeJourney(overview, currentRun, materialEvents)} />
+      <JourneyStrip position={computeJourney(overview, currentRun, materialEvents, goalChanged)} />
 
       {/* 2. STARTUP SNAPSHOT (4 Metric Cards) */}
       <Section>

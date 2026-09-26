@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { describeApiError } from '../../lib/apiErrors';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useGovernorData } from '../../state/governorContext';
@@ -40,7 +41,7 @@ export const ConnectionBanner: React.FC = () => {
         <span>
           <strong style={{ fontWeight: 600 }}>{unreachable ? 'Backend unavailable.' : 'Live data could not be loaded.'}</strong>{' '}
           <span style={{ color: 'var(--color-text-secondary)' }}>
-            {unreachable ? 'The Experiment Governor API is not responding' : `${error.code}: ${error.message}`}
+            {unreachable ? 'The Experiment Governor API is not responding' : describeApiError(error).replace(/\.$/, '')}
             {' — retrying automatically.'}
           </span>
         </span>
