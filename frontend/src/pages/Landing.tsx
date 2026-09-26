@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShieldAlert,
   Play,
   ArrowRight,
   ArrowDown,
@@ -22,6 +21,7 @@ import {
   WifiOff,
   Lightbulb,
 } from 'lucide-react';
+import { BrandMark } from '../components/ui/BrandMark';
 import { storeGuideOpen } from '../lib/demoGuide';
 
 /** Landing-page palette: vibrant accents on top of the app's design tokens. */
@@ -140,7 +140,7 @@ export const Landing: React.FC = () => {
         <nav className="lp-container lp-nav">
           <div className="lp-brand">
             <span className="lp-brand-mark">
-              <ShieldAlert size={20} />
+              <BrandMark size={20} />
             </span>
             <span>
               <strong>Experiment Governor</strong>
@@ -409,7 +409,10 @@ const LANDING_CSS = `
 
 /* Hero */
 .lp-hero { position: relative; overflow: hidden; color: #F8FAFC; padding-bottom: 5rem;
+  /* Fill the first screen so the next section never peeks in as a white strip. */
+  min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column;
   background: linear-gradient(135deg, ${C.ink} 0%, #312E81 45%, #134E4A 100%); }
+.lp-hero > .lp-container { width: 100%; }
 .lp-blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; animation: lp-float 14s ease-in-out infinite; }
 .lp-blob-1 { width: 380px; height: 380px; background: ${C.violet}; top: -120px; right: 8%; }
 .lp-blob-2 { width: 320px; height: 320px; background: ${C.teal}; bottom: -140px; left: -60px; animation-delay: -4s; }
@@ -428,7 +431,7 @@ const LANDING_CSS = `
 .lp-nav-links .lp-nav-cta { display: inline-flex; align-items: center; gap: 0.375rem; color: ${C.ink}; background: ${C.mint}; font-weight: 700; margin-left: 0.5rem; }
 .lp-nav-links .lp-nav-cta:hover { background: #5EEAD4; color: ${C.ink}; }
 
-.lp-hero-grid { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 3rem; align-items: center; padding-top: 2.5rem; }
+.lp-hero-grid { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 3rem; align-items: center; align-content: center; padding-top: 2.5rem; flex: 1; }
 .lp-pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.9rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 600;
   color: #FDE68A; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); margin-bottom: 1.25rem; }
 .lp-h1 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); font-weight: 800; line-height: 1.08; letter-spacing: -0.03em; margin: 0; }
