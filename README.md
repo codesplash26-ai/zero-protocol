@@ -75,6 +75,9 @@ The Governor's reasoning steps use an LLM. The provider order is
 
 - **Groq is recommended** as the primary provider: in our testing it was the most
   reliable and the fastest. Get a free key at <https://console.groq.com/keys>.
+  The free tier has a daily token limit (200,000 tokens per day for the default
+  model at the time of writing). When it is reached, the Governor falls back
+  automatically and keeps working.
 - **Gemini is the secondary option**, used only if Groq is unavailable. Get a key at
   <https://aistudio.google.com/apikey>.
 - **No key?** The system still runs end to end using the rule-based fallback;
@@ -134,7 +137,8 @@ Then follow the *Demo walkthrough* below.
 | Build fails with `no space left on device` | Free disk space (for example `docker builder prune`) and run the build again. |
 | A download fails during the build (for example `npm ci`) | Usually a network blip; run `docker compose up --build` again. |
 | Dashboard shows *Backend unavailable* | Wait for the backend to become healthy, then press *Retry*. |
-| Recommendations say `[Deterministic fallback]` | No LLM key was used; check `GROQ_API_KEY` in `.env`, then run `docker compose up -d`. |
+| Recommendations say `[Deterministic fallback]` | No LLM provider answered. Check `docker compose logs agent`: `Groq failed (RateLimitError)` means the free daily token limit is used up (wait, or use another key); `AuthenticationError` means the key is wrong. Fix `.env`, then run `docker compose up -d`. |
+| Gemini returns `403 permission denied` | The Google project behind the key has no access; create a key in a new project at <https://aistudio.google.com/apikey>. |
 
 ### Configuration
 
