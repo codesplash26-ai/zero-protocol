@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api/client';
 import { api } from '../api/endpoints';
 import { usePollRun } from '../hooks/usePollRun';
-import type { DecisionRun, OverviewSnapshot } from '../types/contract';
+import type { DecisionRun, Event, OverviewSnapshot } from '../types/contract';
 import { GovernorDataContext, type GovernorData } from './governorContext';
 
 /** While the backend is unreachable, try again on this cadence (plus manual retry). */
@@ -10,6 +10,8 @@ const ERROR_RETRY_INTERVAL_MS = 15_000;
 
 interface OverviewState {
   overview: OverviewSnapshot | null;
+  /** Events the backend classified as potentially material (newest first). */
+  materialEvents: Event[];
   error: ApiError | null;
   settled: boolean;
   refreshedAt: number;
@@ -18,6 +20,7 @@ interface OverviewState {
 export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [overviewState, setOverviewState] = useState<OverviewState>({
     overview: null,
+    materialEvents: [],
     error: null,
     settled: false,
     refreshedAt: 0,
@@ -30,10 +33,15 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const refresh = useCallback((): Promise<void> => {
     // Only the newest request may update state, so overlapping refreshes are safe.
     const seq = ++requestSeq.current;
-    return api.getOverview().then(
-      (overview) => {
+    // Material events feed guidance (next step, badges, journey); losing them never blocks the overview.
+    const materialEvents = api
+      .listEvents({ potentially_material: true, limit: 20 })
+      .then((page) => page.items)
+      .catch(() => [] as Event[]);
+    return Promise.all([api.getOverview(), materialEvents]).then(
+      ([overview, events]) => {
         if (seq === requestSeq.current) {
-          setOverviewState({ overview, error: null, settled: true, refreshedAt: Date.now() });
+          setOverviewState({ overview, materialEvents: events, error: null, settled: true, refreshedAt: Date.now() });
         }
       },
       (caught: unknown) => {
@@ -94,6 +102,7 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       null;
     return {
       overview,
+      materialEvents: overviewState.materialEvents,
       organization: overview?.organization_state ?? null,
       stateVersion: overview?.organization_state.state_version ?? null,
       governorStatus: error ? null : (overview?.governor_status ?? null),
@@ -111,6 +120,7 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, [
     overview,
+    overviewState.materialEvents,
     error,
     overviewState.settled,
     overviewState.refreshedAt,

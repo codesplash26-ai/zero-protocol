@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, Building2, ChevronRight, User, ChevronsUpDown, Map as MapIcon, RotateCcw } from 'lucide-react';
+import { Menu, Building2, ChevronRight, User, ChevronsUpDown, Map as MapIcon, RotateCcw, Presentation } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
 import { useGovernorData } from '../../state/governorContext';
+import { isPresentationStored, PRESENT_CLASS, storePresentation } from '../../lib/presentation';
 
 export interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -16,6 +17,18 @@ export interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, guideOpen, onToggleGuide, onResetDemo }) => {
   const location = useLocation();
   const { organization, isLoading } = useGovernorData();
+  const [presenting, setPresenting] = useState(isPresentationStored);
+
+  // Presentation mode lives on <html> so rem sizes scale; it only applies inside the app shell.
+  useEffect(() => {
+    document.documentElement.classList.toggle(PRESENT_CLASS, presenting);
+    return () => document.documentElement.classList.remove(PRESENT_CLASS);
+  }, [presenting]);
+
+  const togglePresenting = () => {
+    storePresentation(!presenting);
+    setPresenting(!presenting);
+  };
 
   const getPageTitle = (path: string): string => {
     switch (path) {
@@ -126,6 +139,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, guideOpen, onT
           </Button>
           <Button variant="outline" size="sm" icon={<RotateCcw size={14} />} onClick={onResetDemo} disabled={!organization}>
             Reset demo
+          </Button>
+          <Button
+            variant={presenting ? 'teal' : 'outline'}
+            size="sm"
+            icon={<Presentation size={14} />}
+            onClick={togglePresenting}
+            aria-pressed={presenting}
+            title="Larger text and no technical details, for presenting"
+          >
+            Present
           </Button>
         </div>
         <Badge variant="teal" size="md">

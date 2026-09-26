@@ -1,4 +1,5 @@
 import React from 'react';
+import { Term } from '../ui/Term';
 import { CheckCircle2, XCircle, Unlock, MinusCircle, PlusCircle, Zap } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -52,7 +53,7 @@ export const EventPresets: React.FC<EventPresetsProps> = ({
           <CardTitle style={{ fontSize: '0.9375rem' }}>Quick Events</CardTitle>
         </div>
         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-          Record what happened — the backend decides whether it is material
+          Record what happened — the backend decides whether it is <Term k="materiality">material</Term>
         </span>
       </CardHeader>
       <CardContent style={{ display: 'flex', flexWrap: 'wrap', gap: '0.625rem' }}>
@@ -81,7 +82,7 @@ export const EventPresets: React.FC<EventPresetsProps> = ({
         {releasable.map((commitment) => (
           <Button
             key={commitment.id}
-            variant="primary"
+            variant="teal"
             size="sm"
             icon={<Unlock size={14} />}
             disabled={disabled}

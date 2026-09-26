@@ -4,6 +4,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import type { Approval, OrganizationState, StrategyView } from '../../types/contract';
 import { formatUsd, formatRelativeTime } from '../../lib/format';
+import { Term } from '../ui/Term';
 import { AlertTriangle, CheckCircle2, XCircle, RefreshCw, GitBranch, ArrowRight, DollarSign, Clock, Users, ShieldAlert } from 'lucide-react';
 
 export interface PendingApprovalCardProps {
@@ -47,7 +48,7 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
                 Pending Authorization
               </Badge>
 
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+              <span className="eg-tech" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
                 {approval.id} • {approval.decision_id}
               </span>
             </div>
@@ -63,7 +64,7 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
 
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
-              Governance Threshold
+              <Term k="approvalThreshold">Approval threshold</Term>
             </div>
             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-warning)' }}>
               {formatUsd(approval.threshold_usd)} USD
