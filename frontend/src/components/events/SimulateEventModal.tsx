@@ -1,40 +1,97 @@
 import React, { useState } from 'react';
 import { CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
-import type { Event, EventType } from '../../mock/pulseboard';
-import { Zap, X, PlusCircle } from 'lucide-react';
+import type { Commitment, EventCreateRequest, EventType, Experiment, ExperimentOutcome } from '../../types/contract';
+import { Zap, X, PlusCircle, Info } from 'lucide-react';
+
+/** Event facts entered by the founder; the page adds occurred_at and expected_state_version. */
+export type SimulatedEventInput = Omit<EventCreateRequest, 'occurred_at' | 'expected_state_version'>;
 
 export interface SimulateEventModalProps {
+  experiments: Experiment[];
+  commitments: Commitment[];
+  submitting: boolean;
+  error: string | null;
   onClose: () => void;
-  onEmitEvent: (event: Omit<Event, 'id' | 'state_version'>, isMaterial: boolean, reason: string) => void;
+  onEmitEvent: (event: SimulatedEventInput) => void;
 }
 
+const TYPE_HELP: Record<EventType, string> = {
+  CAPACITY_CHANGE:
+    'Engineering delta is signed: positive frees or adds capacity, negative removes it (a new 12h block is −12). Selecting a commitment changes its reservation; leaving it empty changes total capacity.',
+  COMMITMENT_CHANGE: 'Changes the reserved hours of one commitment. Positive releases hours, negative reserves more.',
+  EXPERIMENT_RESULT: 'Records the outcome of a RUNNING experiment and completes it. Only SUCCESS unlocks dependent experiments.',
+  BUDGET_CHANGE: 'Changes the allocatable experiment budget. Positive adds budget, negative removes it.',
+  DEPENDENCY_CHANGE: 'Records a change to an experiment’s prerequisites. Describe the change below.',
+};
+
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.8125rem',
+  fontWeight: 600,
+  color: 'var(--color-text-secondary)',
+  marginBottom: '0.375rem',
+};
+
+const control: React.CSSProperties = {
+  width: '100%',
+  padding: '0.5rem 0.75rem',
+  fontSize: '0.8125rem',
+  backgroundColor: 'var(--color-bg)',
+  color: 'var(--color-text-main)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-md)',
+  outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+};
+
 export const SimulateEventModal: React.FC<SimulateEventModalProps> = ({
+  experiments,
+  commitments,
+  submitting,
+  error,
   onClose,
   onEmitEvent,
 }) => {
+  const running = experiments.filter((item) => item.status === 'RUNNING');
   const [eventType, setEventType] = useState<EventType>('CAPACITY_CHANGE');
-  const [description, setDescription] = useState('SSO Vendor reports additional 12-hour API schema dependency block.');
-  const [engDelta, setEngDelta] = useState<number>(12);
-  const [budgetDelta, setBudgetDelta] = useState<number>(0);
-  const [isMaterial, setIsMaterial] = useState<boolean>(true);
-  const [reason, setReason] = useState('Available engineering capacity drops below strategy threshold.');
+  const [description, setDescription] = useState('');
+  const [engDelta, setEngDelta] = useState('');
+  const [budgetDelta, setBudgetDelta] = useState('');
+  const [experimentId, setExperimentId] = useState('');
+  const [outcome, setOutcome] = useState<ExperimentOutcome>('SUCCESS');
+  const [commitmentId, setCommitmentId] = useState('');
+  const [source, setSource] = useState('founder_simulation');
+
+  const usesEngineering = eventType === 'CAPACITY_CHANGE' || eventType === 'COMMITMENT_CHANGE';
+  const usesCommitment = usesEngineering;
+  const usesExperiment = eventType === 'EXPERIMENT_RESULT' || eventType === 'DEPENDENCY_CHANGE';
+  const experimentChoices = eventType === 'EXPERIMENT_RESULT' ? running : experiments;
+  const selectedExperiment = experimentChoices.some((item) => item.id === experimentId) ? experimentId : '';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onEmitEvent(
-      {
-        event_type: eventType,
-        description,
-        engineering_delta_hours: Number(engDelta),
-        budget_delta_usd: Number(budgetDelta),
-        timestamp: 'Just now',
-        source: 'Simulated System Trigger',
-      },
-      isMaterial,
-      reason
-    );
+    // Send only the facts the backend accepts for this event type.
+    onEmitEvent({
+      event_type: eventType,
+      description: description.trim(),
+      engineering_delta_hours: usesEngineering ? Number(engDelta) : 0,
+      budget_delta_usd: eventType === 'BUDGET_CHANGE' ? Number(budgetDelta) : 0,
+      experiment_id: usesExperiment ? selectedExperiment || null : null,
+      experiment_outcome: eventType === 'EXPERIMENT_RESULT' ? outcome : null,
+      commitment_id: usesCommitment && commitmentId ? commitmentId : null,
+      source: source.trim() || 'founder_simulation',
+    });
   };
+
+  const canSubmit =
+    description.trim().length > 0 &&
+    !submitting &&
+    (!usesExperiment || selectedExperiment !== '') &&
+    (!usesEngineering || (engDelta !== '' && Number(engDelta) !== 0)) &&
+    (eventType !== 'COMMITMENT_CHANGE' || commitmentId !== '') &&
+    (eventType !== 'BUDGET_CHANGE' || (budgetDelta !== '' && Number(budgetDelta) !== 0));
 
   return (
     <div
@@ -55,13 +112,14 @@ export const SimulateEventModal: React.FC<SimulateEventModalProps> = ({
         style={{
           width: '100%',
           maxWidth: '540px',
-          backgroundColor: 'var(--color-bg-card)',
+          maxHeight: '92vh',
+          overflowY: 'auto',
+          backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
-          overflow: 'hidden',
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <CardHeader
           style={{
@@ -90,19 +148,14 @@ export const SimulateEventModal: React.FC<SimulateEventModalProps> = ({
             <div>
               <CardTitle style={{ fontSize: '1.125rem' }}>Simulate System Event</CardTitle>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                Test Observe-Adapt Event Feed & Materiality Classification
+                Records a real event against the current organization state
               </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--color-text-muted)',
-              cursor: 'pointer',
-              padding: '0.25rem',
-            }}
+            aria-label="Close"
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '0.25rem' }}
           >
             <X size={20} />
           </button>
@@ -110,137 +163,139 @@ export const SimulateEventModal: React.FC<SimulateEventModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <CardContent style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Event Type Select */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-                Event Type
-              </label>
-              <select
-                value={eventType}
-                onChange={e => setEventType(e.target.value as EventType)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.75rem',
-                  fontSize: '0.8125rem',
-                  backgroundColor: 'var(--color-bg-subtle)',
-                  color: 'var(--color-text-primary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  outline: 'none',
-                }}
-              >
+              <label style={fieldLabel}>Event Type</label>
+              <select value={eventType} onChange={(e) => setEventType(e.target.value as EventType)} style={control}>
                 <option value="CAPACITY_CHANGE">CAPACITY_CHANGE (Engineering / Vendor Delay)</option>
-                <option value="EXPERIMENT_RESULT">EXPERIMENT_RESULT (Cohort Telemetry)</option>
+                <option value="EXPERIMENT_RESULT">EXPERIMENT_RESULT (Experiment Outcome)</option>
                 <option value="BUDGET_CHANGE">BUDGET_CHANGE (Capital Allocation)</option>
                 <option value="DEPENDENCY_CHANGE">DEPENDENCY_CHANGE (Technical Prerequisite)</option>
                 <option value="COMMITMENT_CHANGE">COMMITMENT_CHANGE (Roadmap Shield)</option>
               </select>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.375rem', lineHeight: 1.4 }}>
+                {TYPE_HELP[eventType]}
+              </div>
             </div>
 
-            {/* Description Input */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-                Event Description
-              </label>
+              <label style={fieldLabel}>Event Description *</label>
               <textarea
                 value={description}
-                onChange={e => setDescription(e.target.value)}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={2}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.75rem',
-                  fontSize: '0.8125rem',
-                  backgroundColor: 'var(--color-bg-subtle)',
-                  color: 'var(--color-text-primary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  outline: 'none',
-                  resize: 'none',
-                }}
+                required
+                placeholder="What happened?"
+                style={{ ...control, resize: 'none' }}
               />
             </div>
 
-            {/* Resource Deltas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-                  Eng Delta Hours (+ / -)
-                </label>
-                <input
-                  type="number"
-                  value={engDelta}
-                  onChange={e => setEngDelta(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.8125rem',
-                    backgroundColor: 'var(--color-bg-subtle)',
-                    color: 'var(--color-text-primary)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    outline: 'none',
-                  }}
-                />
+            {usesExperiment && (
+              <div style={{ display: 'grid', gridTemplateColumns: eventType === 'EXPERIMENT_RESULT' ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={fieldLabel}>Experiment *</label>
+                  <select value={selectedExperiment} onChange={(e) => setExperimentId(e.target.value)} style={control}>
+                    <option value="">
+                      {experimentChoices.length ? 'Select an experiment' : 'No RUNNING experiment'}
+                    </option>
+                    {experimentChoices.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.id} — {item.name} ({item.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {eventType === 'EXPERIMENT_RESULT' && (
+                  <div>
+                    <label style={fieldLabel}>Outcome *</label>
+                    <select value={outcome} onChange={(e) => setOutcome(e.target.value as ExperimentOutcome)} style={control}>
+                      <option value="SUCCESS">SUCCESS</option>
+                      <option value="FAILURE">FAILURE</option>
+                    </select>
+                  </div>
+                )}
               </div>
+            )}
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-                  Budget Delta USD (+ / -)
-                </label>
-                <input
-                  type="number"
-                  value={budgetDelta}
-                  onChange={e => setBudgetDelta(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    fontSize: '0.8125rem',
-                    backgroundColor: 'var(--color-bg-subtle)',
-                    color: 'var(--color-text-primary)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Materiality Toggle */}
-            <div style={{ padding: '0.75rem', backgroundColor: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                <input
-                  type="checkbox"
-                  checked={isMaterial}
-                  onChange={e => setIsMaterial(e.target.checked)}
-                />
-                Mark as Potentially Material Event (Triggers Governor Re-Plan)
-              </label>
-
-              {isMaterial && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
-                    Materiality Reason
-                  </label>
+            {usesEngineering && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={fieldLabel}>Eng Delta Hours (+ / −) *</label>
                   <input
-                    type="text"
-                    value={reason}
-                    onChange={e => setReason(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.375rem 0.625rem',
-                      fontSize: '0.75rem',
-                      backgroundColor: 'var(--color-bg-card)',
-                      color: 'var(--color-text-primary)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-sm)',
-                      outline: 'none',
-                    }}
+                    type="number"
+                    step={1}
+                    value={engDelta}
+                    onChange={(e) => setEngDelta(e.target.value)}
+                    placeholder="e.g. 18 or -12"
+                    style={control}
                   />
                 </div>
-              )}
+                <div>
+                  <label style={fieldLabel}>Commitment{eventType === 'COMMITMENT_CHANGE' ? ' *' : ''}</label>
+                  <select value={commitmentId} onChange={(e) => setCommitmentId(e.target.value)} style={control}>
+                    <option value="">{eventType === 'COMMITMENT_CHANGE' ? 'Select a commitment' : 'None (total capacity)'}</option>
+                    {commitments.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.reserved_engineering_hours}h reserved)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {eventType === 'BUDGET_CHANGE' && (
+              <div>
+                <label style={fieldLabel}>Budget Delta USD (+ / −) *</label>
+                <input
+                  type="number"
+                  step={1}
+                  value={budgetDelta}
+                  onChange={(e) => setBudgetDelta(e.target.value)}
+                  placeholder="e.g. 500 or -500"
+                  style={control}
+                />
+              </div>
+            )}
+
+            <div>
+              <label style={fieldLabel}>Source</label>
+              <input type="text" value={source} onChange={(e) => setSource(e.target.value)} style={control} />
             </div>
 
-            {/* Footer */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                padding: '0.75rem',
+                backgroundColor: 'var(--color-bg)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+                fontSize: '0.75rem',
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.4,
+              }}
+            >
+              <Info size={14} style={{ flexShrink: 0, marginTop: '1px', color: 'var(--color-governor-teal)' }} />
+              Materiality is not chosen here: the backend applies the event, increments the state version and then
+              calculates deterministic materiality.
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                style={{
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-danger-bg)',
+                  border: '1px solid #FECACA',
+                  color: 'var(--color-danger)',
+                  fontSize: '0.8125rem',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',
@@ -251,11 +306,11 @@ export const SimulateEventModal: React.FC<SimulateEventModalProps> = ({
                 borderTop: '1px solid var(--color-border)',
               }}
             >
-              <Button variant="ghost" size="sm" type="button" onClick={onClose}>
+              <Button variant="ghost" size="sm" type="button" onClick={onClose} disabled={submitting}>
                 Cancel
               </Button>
-              <Button variant="primary" size="md" type="submit" icon={<PlusCircle size={16} />}>
-                Emit Simulated Event
+              <Button variant="primary" size="md" type="submit" icon={<PlusCircle size={16} />} disabled={!canSubmit}>
+                {submitting ? 'Recording…' : 'Record Event'}
               </Button>
             </div>
           </CardContent>

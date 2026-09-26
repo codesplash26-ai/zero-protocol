@@ -2,12 +2,19 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { Approval, CandidateStrategy } from '../../mock/pulseboard';
+import type { Approval, OrganizationState, StrategyView } from '../../types/contract';
+import { formatUsd, formatRelativeTime } from '../../lib/format';
 import { AlertTriangle, CheckCircle2, XCircle, RefreshCw, GitBranch, ArrowRight, DollarSign, Clock, Users, ShieldAlert } from 'lucide-react';
 
 export interface PendingApprovalCardProps {
   approval: Approval;
-  strategy?: CandidateStrategy;
+  /** Strategy context from the decision workspace; authorization covers approval.experiment_id only. */
+  strategy?: StrategyView | null;
+  experimentName?: string | null;
+  organization: OrganizationState;
+  /** Reasoning from the recommendation this approval belongs to, when available. */
+  reasoning?: string | null;
+  busy?: boolean;
   onApprove: (approval: Approval) => void;
   onReject: (approval: Approval) => void;
   onRequestReplan: (approval: Approval) => void;
@@ -16,13 +23,18 @@ export interface PendingApprovalCardProps {
 export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
   approval,
   strategy,
+  experimentName,
+  organization,
+  reasoning,
+  busy = false,
   onApprove,
   onReject,
   onRequestReplan,
 }) => {
-  const cost = approval.cost_usd ?? strategy?.cost_usd ?? 0;
-  const hours = approval.engineering_hours ?? strategy?.engineering_hours ?? 0;
-  const traffic = approval.traffic_required ?? strategy?.traffic_required ?? 0;
+  const cost = approval.authorized_cost_usd;
+  const hours = approval.authorized_engineering_hours;
+  const traffic = approval.authorized_traffic;
+  const available = organization.available_engineering_hours;
 
   return (
     <Card padding="lg" style={{ border: '1px solid var(--color-warning-border)', backgroundColor: 'var(--color-bg-card)' }}>
@@ -41,10 +53,11 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
             </div>
 
             <CardTitle style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-              {strategy?.title || `Strategy ${approval.strategy_id}`}
+              Start experiment {approval.experiment_id}
+              {experimentName ? ` — ${experimentName}` : ''}
             </CardTitle>
             <CardDescription style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
-              Proposed by {approval.proposed_by || 'Governor Strategy Engine'} • {approval.requested_at}
+              Requested by {approval.requested_by} • {formatRelativeTime(approval.requested_at)} • State v{approval.state_version}
             </CardDescription>
           </div>
 
@@ -53,7 +66,7 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
               Governance Threshold
             </div>
             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-warning)' }}>
-              ${approval.threshold_usd.toLocaleString()} USD
+              {formatUsd(approval.threshold_usd)} USD
             </div>
           </div>
         </div>
@@ -109,10 +122,12 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
                 Budget Required
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: '0.25rem 0' }}>
-                ${cost.toLocaleString()} USD
+                {formatUsd(cost)} USD
               </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--color-warning)' }}>
-                Exceeds threshold by ${(cost - approval.threshold_usd).toLocaleString()} USD
+              <div style={{ fontSize: '0.6875rem', color: cost > approval.threshold_usd ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+                {cost > approval.threshold_usd
+                  ? `Exceeds threshold by ${formatUsd(cost - approval.threshold_usd)} USD`
+                  : 'Within the approval threshold'}
               </div>
             </div>
 
@@ -133,7 +148,9 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
                 {hours} Hours
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-                Consumes 100% of available buffer (24h)
+                {available > 0
+                  ? `${Math.round((hours / available) * 100)}% of the ${available}h currently available`
+                  : 'No engineering hours currently available'}
               </div>
             </div>
 
@@ -151,10 +168,10 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
                 Traffic Allocation
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: '0.25rem 0' }}>
-                {traffic.toLocaleString()} visits
+                {traffic.toLocaleString()} sessions
               </div>
               <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-                Within eligible limit (10,000 visits)
+                Of {organization.eligible_traffic.toLocaleString()} eligible sessions
               </div>
             </div>
           </div>
@@ -173,7 +190,7 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <GitBranch size={16} style={{ color: 'var(--color-accent-blue)' }} />
               <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                Strategy Sequence ({strategy.id})
+                Strategy Context: {strategy.title} ({strategy.id})
               </span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem' }}>
@@ -204,10 +221,12 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
         )}
 
         {/* Reasoning Summary */}
-        <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-          <strong style={{ color: 'var(--color-text-primary)' }}>Governor Summary: </strong>
-          {approval.impact_summary}
-        </div>
+        {reasoning && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--color-text-primary)' }}>Governor Summary: </strong>
+            {reasoning}
+          </div>
+        )}
 
         {/* Action Controls */}
         <div
@@ -226,6 +245,7 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
             size="sm"
             onClick={() => onRequestReplan(approval)}
             icon={<RefreshCw size={14} />}
+            disabled={busy}
           >
             Request Re-Plan
           </Button>
@@ -236,8 +256,9 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
             onClick={() => onReject(approval)}
             icon={<XCircle size={14} style={{ color: 'var(--color-danger)' }} />}
             style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger-border)' }}
+            disabled={busy}
           >
-            Reject Strategy
+            Reject {approval.experiment_id}
           </Button>
 
           <Button
@@ -245,8 +266,9 @@ export const PendingApprovalCard: React.FC<PendingApprovalCardProps> = ({
             size="md"
             onClick={() => onApprove(approval)}
             icon={<CheckCircle2 size={16} />}
+            disabled={busy}
           >
-            Approve & Execute Strategy
+            Approve and start {approval.experiment_id}
           </Button>
         </div>
       </CardContent>

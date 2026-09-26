@@ -1,62 +1,83 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import type { AuditEntry } from './auditEntry';
 import { Target, GitBranch, ShieldCheck, FileCheck, Zap, AlertTriangle, RefreshCw, ArrowRight } from 'lucide-react';
 
-export const LifecycleTraceGraph: React.FC = () => {
+const unique = (values: (string | null)[]) => [...new Set(values.filter((value): value is string => !!value))];
+const hasTitle = (entry: AuditEntry, pattern: RegExp) => pattern.test(entry.title ?? '');
+
+export interface LifecycleTraceGraphProps {
+  /** Decision trace from GET /audit/{decision_id}, oldest first. */
+  trace: AuditEntry[];
+}
+
+/** Stage-by-stage view of the decision trace; stages the trace has not reached are dimmed. */
+export const LifecycleTraceGraph: React.FC<LifecycleTraceGraphProps> = ({ trace }) => {
+  const first = trace[0];
+  const solver = trace.find((entry) => entry.optimization_status !== null);
+  const approvals = unique(trace.map((entry) => entry.approval_id));
+  const receipts = unique(trace.map((entry) => entry.action_receipt_id));
+  const events = unique(trace.flatMap((entry) => entry.event_ids));
+  const materiality = trace.filter(
+    (entry) => entry.tool_calls.includes('calculate_materiality') || hasTitle(entry, /materiality/i),
+  );
+  const replans = trace.filter((entry) => hasTitle(entry, /replan/i));
+  const list = (ids: string[]) => (ids.length > 2 ? `${ids.slice(0, 2).join(', ')} +${ids.length - 2}` : ids.join(', '));
+
   const steps = [
     {
       title: '1. Goal & Decision',
-      subtitle: 'GOAL-001 • DEC-001',
-      desc: 'Define 4-week growth goal & constraints',
+      subtitle: first ? `${first.goal_id} • ${first.decision_id}` : null,
+      desc: 'Founder goal and the decision being governed',
       icon: <Target size={16} />,
       color: 'var(--color-accent-blue)',
       bg: 'var(--color-accent-blue-light)',
     },
     {
       title: '2. Strategy Optimization',
-      subtitle: 'Automated Evaluation',
-      desc: 'Synthesize candidate strategies under constraints',
+      subtitle: solver ? `CP-SAT ${solver.optimization_status} • v${solver.state_version}` : null,
+      desc: 'Candidate strategies evaluated under constraints',
       icon: <GitBranch size={16} />,
       color: 'var(--color-accent-purple)',
       bg: 'rgba(139, 92, 246, 0.15)',
     },
     {
       title: '3. Approval Routing',
-      subtitle: 'APR-001 Threshold',
-      desc: 'Founder authorization check ($2,000 threshold)',
+      subtitle: approvals.length ? list(approvals) : null,
+      desc: 'Founder authorization policy check',
       icon: <ShieldCheck size={16} />,
       color: 'var(--color-warning)',
       bg: 'var(--color-warning-bg)',
     },
     {
       title: '4. Action Execution',
-      subtitle: 'ACT-001 Receipt',
-      desc: 'Reserve budget & eng hours in state',
+      subtitle: receipts.length ? list(receipts) : null,
+      desc: 'Controlled action reserves budget & hours',
       icon: <FileCheck size={16} />,
       color: 'var(--color-success)',
       bg: 'var(--color-success-bg)',
     },
     {
       title: '5. Event Ingestion',
-      subtitle: 'EVENT-001 Trigger',
-      desc: 'Runtime vendor delay or telemetry stream',
+      subtitle: events.length ? list(events) : null,
+      desc: 'Organization events applied to state',
       icon: <Zap size={16} />,
       color: 'var(--color-governor-teal)',
       bg: 'var(--color-governor-teal-light)',
     },
     {
       title: '6. Materiality Check',
-      subtitle: 'Materiality Assessment',
-      desc: 'Evaluate capacity & strategy feasibility',
+      subtitle: materiality.length ? `${materiality.length} evaluation${materiality.length > 1 ? 's' : ''}` : null,
+      desc: 'Deterministic materiality of each event',
       icon: <AlertTriangle size={16} />,
       color: 'var(--color-warning)',
       bg: 'var(--color-warning-bg)',
     },
     {
       title: '7. Observe-Adapt Re-Plan',
-      subtitle: 'State v2 Re-Plan',
-      desc: 'Synthesize adapted strategy & route',
+      subtitle: replans.length ? `State v${replans[replans.length - 1].state_version} Re-Plan` : null,
+      desc: 'Governor re-evaluates after a material change',
       icon: <RefreshCw size={16} />,
       color: 'var(--color-accent-blue)',
       bg: 'var(--color-accent-blue-light)',
@@ -71,7 +92,7 @@ export const LifecycleTraceGraph: React.FC = () => {
             <GitBranch size={18} style={{ color: 'var(--color-accent-blue)' }} />
             <CardTitle style={{ fontSize: '0.9375rem' }}>End-to-End Decision Lifecycle Traceability</CardTitle>
           </div>
-          <Badge variant="info">Immutable Trace Chain</Badge>
+          <Badge variant="info">{trace.length} Trace Records</Badge>
         </div>
       </CardHeader>
 
@@ -95,6 +116,7 @@ export const LifecycleTraceGraph: React.FC = () => {
               <div
                 style={{
                   minWidth: '150px',
+                  opacity: step.subtitle ? 1 : 0.5,
                   padding: '0.75rem',
                   backgroundColor: 'var(--color-bg-subtle)',
                   borderRadius: 'var(--radius-md)',
@@ -125,8 +147,15 @@ export const LifecycleTraceGraph: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: step.color, fontFamily: 'monospace' }}>
-                  {step.subtitle}
+                <div
+                  style={{
+                    fontSize: '0.6875rem',
+                    fontWeight: 600,
+                    color: step.subtitle ? step.color : 'var(--color-text-muted)',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {step.subtitle ?? 'Not reached yet'}
                 </div>
 
                 <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', lineHeight: 1.3 }}>

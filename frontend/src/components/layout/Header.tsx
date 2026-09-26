@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Menu, Building2, ChevronRight, User, ChevronsUpDown } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
+import { useGovernorData } from '../../state/governorContext';
 
 export interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -10,6 +11,7 @@ export interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   const location = useLocation();
+  const { organization, isLoading } = useGovernorData();
 
   const getPageTitle = (path: string): string => {
     switch (path) {
@@ -92,7 +94,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
             >
               <Building2 size={13} />
             </div>
-            <span>PulseBoard</span>
+            <span style={organization ? undefined : { color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              {organization?.organization_name ?? (isLoading ? 'Loading…' : 'Unavailable')}
+            </span>
             <ChevronsUpDown size={14} style={{ color: 'var(--color-text-muted)' }} />
           </button>
 

@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import type { Experiment, ExperimentStatus } from '../../mock/pulseboard';
+import type { Experiment } from '../../types/contract';
+import { ExperimentStatusBadge } from '../experiments/ExperimentStatusBadge';
+import { formatUsd } from '../../lib/format';
 import { FlaskConical, ArrowRight } from 'lucide-react';
 
 export interface ExperimentSummaryTableProps {
@@ -11,23 +12,6 @@ export interface ExperimentSummaryTableProps {
 
 export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ experiments }) => {
   const navigate = useNavigate();
-
-  const getStatusBadge = (status: ExperimentStatus) => {
-    switch (status) {
-      case 'PROPOSED':
-        return <Badge variant="default">Proposed</Badge>;
-      case 'APPROVED':
-        return <Badge variant="teal">Approved</Badge>;
-      case 'RUNNING':
-        return <Badge variant="info">Running</Badge>;
-      case 'COMPLETED':
-        return <Badge variant="success">Completed</Badge>;
-      case 'REJECTED':
-        return <Badge variant="danger">Rejected</Badge>;
-      default:
-        return <Badge variant="default">{status}</Badge>;
-    }
-  };
 
   return (
     <Card padding="lg">
@@ -60,7 +44,7 @@ export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ 
               CANDIDATE PIPELINE
             </div>
             <CardTitle style={{ fontSize: '1.0625rem', marginTop: '0.125rem' }}>
-              Active Experiments
+              Experiments
             </CardTitle>
           </div>
         </div>
@@ -115,6 +99,13 @@ export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ 
             </tr>
           </thead>
           <tbody>
+            {experiments.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ padding: '1rem 0', color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>
+                  No experiments have been recorded yet.
+                </td>
+              </tr>
+            )}
             {experiments.map((exp, index) => (
               <tr
                 key={exp.id}
@@ -130,15 +121,17 @@ export const ExperimentSummaryTable: React.FC<ExperimentSummaryTableProps> = ({ 
                     </div>
                   )}
                 </td>
-                <td style={{ padding: '0.875rem 1rem' }}>{getStatusBadge(exp.status)}</td>
+                <td style={{ padding: '0.875rem 1rem' }}>
+                  <ExperimentStatusBadge experiment={exp} />
+                </td>
                 <td style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-                  {exp.cost_usd !== null ? `$${exp.cost_usd.toLocaleString()}` : '—'}
+                  {formatUsd(exp.cost_usd)}
                 </td>
                 <td style={{ padding: '0.875rem 1rem', color: 'var(--color-text-secondary)' }}>
-                  {exp.engineering_hours !== null ? `${exp.engineering_hours}h` : '—'}
+                  {exp.engineering_hours}h
                 </td>
                 <td style={{ padding: '0.875rem 0 0.875rem 1rem', textAlign: 'right', color: 'var(--color-text-secondary)' }}>
-                  {exp.traffic_required !== null ? `${exp.traffic_required.toLocaleString()} sessions` : '—'}
+                  {exp.traffic_required.toLocaleString()} sessions
                 </td>
               </tr>
             ))}

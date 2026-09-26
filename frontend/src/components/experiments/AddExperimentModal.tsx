@@ -2,19 +2,25 @@ import React, { useState } from 'react';
 import { CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { IconButton } from '../ui/IconButton';
-import type { Experiment } from '../../mock/pulseboard';
+import type { Experiment, ExperimentEvidenceInput } from '../../types/contract';
+import { api } from '../../api/endpoints';
+import { describeApiError } from '../../lib/apiErrors';
 import { X, Plus, CheckCircle2 } from 'lucide-react';
 
 export interface AddExperimentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddExperiment: (exp: Experiment) => void;
+  /** Current organization state_version, required by POST /experiments. */
+  stateVersion: number | null;
+  /** Called with the backend-created experiment; the page refreshes shared state. */
+  onCreated: (exp: Experiment) => void;
 }
 
 export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
   isOpen,
   onClose,
-  onAddExperiment,
+  stateVersion,
+  onCreated,
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -26,41 +32,73 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
   const [dependencies, setDependencies] = useState('');
   const [successThreshold, setSuccessThreshold] = useState('');
   const [decisionRole, setDecisionRole] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [created, setCreated] = useState<Experiment | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setHypothesis('');
+    setCostUsd('');
+    setEngineeringHours('');
+    setTrafficRequired('');
+    setDuration('');
+    setDependencies('');
+    setSuccessThreshold('');
+    setDecisionRole('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || stateVersion === null) return;
 
-    const newExp: Experiment = {
-      id: `EXP-00${Math.floor(Math.random() * 900) + 100}`,
-      name: name.trim(),
-      short_description: description.trim() || 'Manual founder experiment entry.',
-      objective: description.trim() || 'Manual entry objective.',
-      hypothesis: hypothesis.trim() || 'Not specified',
-      status: 'PROPOSED',
-      cost_usd: costUsd ? parseFloat(costUsd) : null,
-      engineering_hours: engineeringHours ? parseFloat(engineeringHours) : null,
-      traffic_required: trafficRequired ? parseInt(trafficRequired, 10) : null,
-      duration: duration.trim() || null,
-      dependencies: dependencies ? dependencies.split(',').map((d) => d.trim()).filter(Boolean) : [],
-      success_threshold: successThreshold.trim() || null,
-      decision_role: decisionRole.trim() || 'General growth validation',
-      provenance: {
+    // Canonical experiments hold only resources; narrative fields are stored
+    // as evidence with provenance (Contract v1.1 §5.13).
+    const narrative: [string, string][] = [
+      ['Objective', description],
+      ['Hypothesis', hypothesis],
+      ['Duration', duration],
+      ['Success threshold', successThreshold],
+    ];
+    const evidenceItems: ExperimentEvidenceInput[] = narrative
+      .filter(([, value]) => value.trim())
+      .map(([label, value]) => ({
         source: 'Manual Founder Input',
+        content: `${label}: ${value.trim()}`,
         quality: 'HIGH',
-      },
-      missing_fields: [],
-    };
+      }));
 
-    onAddExperiment(newExp);
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
-      onClose();
-    }, 1200);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const experiment = await api.createExperiment({
+        name: name.trim(),
+        cost_usd: Number(costUsd),
+        engineering_hours: Number(engineeringHours),
+        traffic_required: Number(trafficRequired),
+        dependencies: dependencies
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean),
+        decision_role: decisionRole.trim() || null,
+        evidence_items: evidenceItems,
+        expected_state_version: stateVersion,
+      });
+      setCreated(experiment);
+      resetForm();
+      onCreated(experiment);
+      setTimeout(() => {
+        setCreated(null);
+        onClose();
+      }, 1200);
+    } catch (caught) {
+      setSubmitError(describeApiError(caught));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -118,7 +156,7 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
         </CardHeader>
 
         <CardContent style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
-          {isSubmitted ? (
+          {created ? (
             <div
               style={{
                 display: 'flex',
@@ -148,7 +186,7 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 Experiment Created
               </h3>
               <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                Normalized experiment added to candidate portfolio.
+                Experiment {created.id} was recorded by the backend at state v{stateVersion}.
               </p>
             </div>
           ) : (
@@ -169,7 +207,7 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                  Description / Objective
+                  Description / Objective (stored as evidence)
                 </label>
                 <textarea
                   rows={2}
@@ -196,10 +234,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Cost (USD)
+                    Cost (USD) *
                   </label>
                   <input
                     type="number"
+                    required
+                    min={0}
+                    step={1}
                     placeholder="2500"
                     value={costUsd}
                     onChange={(e) => setCostUsd(e.target.value)}
@@ -208,10 +249,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Eng Hours (h)
+                    Eng Hours (h) *
                   </label>
                   <input
                     type="number"
+                    required
+                    min={0}
+                    step={1}
                     placeholder="24"
                     value={engineeringHours}
                     onChange={(e) => setEngineeringHours(e.target.value)}
@@ -220,10 +264,13 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>
-                    Traffic Required
+                    Traffic Required *
                   </label>
                   <input
                     type="number"
+                    required
+                    min={0}
+                    step={1}
                     placeholder="3500"
                     value={trafficRequired}
                     onChange={(e) => setTrafficRequired(e.target.value)}
@@ -286,6 +333,22 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 </div>
               </div>
 
+              {submitError && (
+                <div
+                  role="alert"
+                  style={{
+                    padding: '0.625rem 0.75rem',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--color-danger-bg)',
+                    border: '1px solid #FECACA',
+                    color: 'var(--color-danger)',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  {submitError}
+                </div>
+              )}
+
               <div
                 style={{
                   marginTop: '1rem',
@@ -300,8 +363,8 @@ export const AddExperimentModal: React.FC<AddExperimentModalProps> = ({
                 <Button variant="outline" type="button" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit">
-                  Create Experiment
+                <Button variant="primary" type="submit" disabled={submitting || stateVersion === null}>
+                  {submitting ? 'Creating…' : 'Create Experiment'}
                 </Button>
               </div>
             </form>

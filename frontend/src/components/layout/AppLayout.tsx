@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { ConnectionBanner } from './ConnectionBanner';
 
 export const AppLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -30,6 +31,7 @@ export const AppLayout: React.FC = () => {
             boxSizing: 'border-box',
           }}
         >
+          <ConnectionBanner />
           <Outlet />
         </main>
       </div>

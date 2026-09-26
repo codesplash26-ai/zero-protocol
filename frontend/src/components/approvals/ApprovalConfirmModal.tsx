@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
-import type { Approval } from '../../mock/pulseboard';
+import type { Approval } from '../../types/contract';
+import { formatUsd } from '../../lib/format';
 import { ShieldCheck, AlertTriangle, CheckCircle2, XCircle, X, Lock } from 'lucide-react';
 
 export interface ApprovalConfirmModalProps {
@@ -9,6 +10,8 @@ export interface ApprovalConfirmModalProps {
   mode: 'APPROVE' | 'REJECT';
   onClose: () => void;
   onConfirm: (approval: Approval, reason: string) => void;
+  busy?: boolean;
+  error?: string | null;
 }
 
 export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
@@ -16,11 +19,13 @@ export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
   mode,
   onClose,
   onConfirm,
+  busy = false,
+  error = null,
 }) => {
   const [customReason, setCustomReason] = useState(
     mode === 'APPROVE'
-      ? 'Founder approved expenditure exceeding governance threshold.'
-      : 'Founder rejected proposed strategy due to resource priorities.'
+      ? `Founder approved starting experiment ${approval?.experiment_id ?? ''}.`.replace(' .', '.')
+      : `Founder rejected starting experiment ${approval?.experiment_id ?? ''}.`.replace(' .', '.')
   );
 
   if (!approval) return null;
@@ -80,7 +85,7 @@ export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
             </div>
             <div>
               <CardTitle style={{ fontSize: '1.125rem' }}>
-                {isApprove ? 'Authorize Strategy Execution' : 'Reject Strategy Proposal'}
+                {isApprove ? `Approve and start ${approval.experiment_id}` : `Reject starting ${approval.experiment_id}`}
               </CardTitle>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                 Binding Governance Authorization • {approval.id}
@@ -117,12 +122,16 @@ export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
             {isApprove ? (
               <div>
                 <strong>Legal & Organizational Impact: </strong>
-                By approving, you authorize reserving <strong>${approval.cost_usd?.toLocaleString()} USD</strong> from organization budget and committing <strong>{approval.engineering_hours} Engineering Hours</strong>.
+                Approving authorizes one action — starting experiment <strong>{approval.experiment_id}</strong> — and
+                then asks the backend to start it, reserving <strong>{formatUsd(approval.authorized_cost_usd)} USD</strong> and{' '}
+                <strong>{approval.authorized_engineering_hours} engineering hours</strong>. It does not approve later steps
+                of the strategy.
               </div>
             ) : (
               <div>
                 <strong>Rejection Impact: </strong>
-                Rejecting this strategy will return the governor into a replanning cycle and release reserved budget requests back to unallocated state.
+                Rejecting records the founder's decision for experiment {approval.experiment_id}. No resources are
+                reserved; you can request a Governor replan afterwards.
               </div>
             )}
           </div>
@@ -139,6 +148,22 @@ export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
               <strong style={{ color: 'var(--color-text-primary)' }}>{approval.strategy_id}</strong>
             </div>
           </div>
+
+          {error && (
+            <div
+              role="alert"
+              style={{
+                padding: '0.625rem 0.75rem',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-danger-bg)',
+                border: '1px solid #FECACA',
+                color: 'var(--color-danger)',
+                fontSize: '0.8125rem',
+              }}
+            >
+              {error}
+            </div>
+          )}
 
           {/* Reason Input */}
           <div>
@@ -179,17 +204,18 @@ export const ApprovalConfirmModal: React.FC<ApprovalConfirmModalProps> = ({
             </div>
 
             <div style={{ display: 'flex', gap: '0.625rem' }}>
-              <Button variant="ghost" size="sm" onClick={onClose}>
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>
                 Cancel
               </Button>
               <Button
                 variant={isApprove ? 'primary' : 'outline'}
                 size="md"
-                onClick={() => onConfirm(approval, customReason)}
+                disabled={busy || !customReason.trim()}
+                onClick={() => onConfirm(approval, customReason.trim())}
                 icon={isApprove ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
                 style={!isApprove ? { color: 'var(--color-danger)', borderColor: 'var(--color-danger-border)' } : {}}
               >
-                {isApprove ? 'Confirm Authorization' : 'Confirm Rejection'}
+                {busy ? 'Submitting…' : isApprove ? 'Confirm Authorization' : 'Confirm Rejection'}
               </Button>
             </div>
           </div>

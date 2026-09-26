@@ -3,15 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import type { Goal } from '../../mock/pulseboard';
+import type { Goal } from '../../types/contract';
 import { Target, ArrowRight, Calendar, GitPullRequest } from 'lucide-react';
 
 export interface DecisionSummaryCardProps {
-  goal: Goal;
-  recommendationState: string;
+  goal: Goal | null;
+  /** Latest recommended strategy ID (opaque), or null before the first recommendation. */
+  recommendationState: string | null;
+  /** State version the recommendation was generated for. */
+  recommendationVersion?: number | null;
 }
 
-export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, recommendationState }) => {
+export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({
+  goal,
+  recommendationState,
+  recommendationVersion,
+}) => {
   const navigate = useNavigate();
 
   return (
@@ -49,10 +56,12 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, 
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Badge variant="info">
-            <Calendar size={12} />
-            <span>Horizon: {goal.horizon_weeks} weeks</span>
-          </Badge>
+          {goal && (
+            <Badge variant="info">
+              <Calendar size={12} />
+              <span>Horizon: {goal.horizon_weeks} weeks</span>
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
@@ -77,7 +86,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, 
               marginBottom: '0.25rem',
             }}
           >
-            Goal Statement (ID: {goal.id})
+            {goal ? `Goal Statement (ID: ${goal.id})` : 'Goal Statement'}
           </div>
           <div
             style={{
@@ -87,7 +96,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, 
               lineHeight: 1.5,
             }}
           >
-            "{goal.text}"
+            {goal ? `"${goal.text}"` : 'No active goal has been recorded.'}
           </div>
         </div>
 
@@ -121,11 +130,16 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({ goal, 
               style={{
                 fontSize: '0.9375rem',
                 fontWeight: 700,
-                color: 'var(--color-governor-teal)',
+                color: recommendationState ? 'var(--color-governor-teal)' : 'var(--color-text-muted)',
                 marginTop: '0.125rem',
               }}
             >
-              {recommendationState}
+              {recommendationState ?? 'No recommendation yet'}
+              {recommendationState && recommendationVersion != null && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginLeft: '0.5rem' }}>
+                  state v{recommendationVersion}
+                </span>
+              )}
             </div>
           </div>
 

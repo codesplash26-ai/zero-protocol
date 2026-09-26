@@ -1,14 +1,21 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import type { GovernorStatus } from '../../mock/pulseboard';
+import type { GovernorStatus } from '../../types/contract';
+import { describeGovernor } from '../../lib/governorStatus';
+import { formatRelativeTime } from '../../lib/format';
 import { ShieldCheck, Activity, Clock } from 'lucide-react';
 
 export interface GovernorStatusCardProps {
-  status: GovernorStatus;
+  /** Live status from the shared provider; null while loading or unavailable. */
+  status: GovernorStatus | null;
+  isLoading?: boolean;
 }
 
-export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }) => {
+export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status, isLoading = false }) => {
+  // Same wording as the sidebar so the two never disagree.
+  const display = describeGovernor(status, isLoading);
+
   return (
     <Card
       padding="lg"
@@ -63,16 +70,16 @@ export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }
           </div>
         </div>
 
-        <Badge variant="teal" size="md">
+        <Badge variant={display.badge} size="md">
           <div
             style={{
               width: '6px',
               height: '6px',
               borderRadius: '50%',
-              backgroundColor: 'var(--color-governor-teal)',
+              backgroundColor: 'currentColor',
             }}
           />
-          <span>{status.state}</span>
+          <span>{display.short}</span>
         </Badge>
       </CardHeader>
 
@@ -90,7 +97,7 @@ export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }
             <span>DECISION CYCLE</span>
           </div>
           <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: '0.125rem' }}>
-            {status.decision_cycle}
+            {display.detail}
           </div>
         </div>
 
@@ -108,7 +115,9 @@ export const GovernorStatusCard: React.FC<GovernorStatusCardProps> = ({ status }
             <Clock size={13} style={{ color: 'var(--color-text-muted)' }} />
             <span>Last Activity:</span>
           </div>
-          <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{status.last_activity}</span>
+          <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>
+            {status ? formatRelativeTime(status.last_activity_at) : '—'}
+          </span>
         </div>
       </CardContent>
     </Card>

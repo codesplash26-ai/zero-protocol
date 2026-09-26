@@ -2,17 +2,26 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import type { Approval, ActionReceipt } from '../../mock/pulseboard';
-import { ShieldCheck, CheckCircle2, XCircle, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import type { Approval, ActionReceipt } from '../../types/contract';
+import { formatUsd, formatDateTime } from '../../lib/format';
+import { ShieldCheck, CheckCircle2, XCircle, FileText, ChevronDown, ChevronUp, MinusCircle, AlertTriangle } from 'lucide-react';
 
 export interface ApprovalHistoryTableProps {
   approvals: Approval[];
-  actionReceipts: ActionReceipt[];
+  /** Receipts keyed by approval ID (fetched with GET /action-receipts?approval_id=). */
+  receiptsByApproval: Record<string, ActionReceipt | null>;
 }
+
+const DECISION_BADGES: Record<Exclude<Approval['decision'], 'PENDING'>, { label: string; variant: 'success' | 'danger' | 'default' | 'warning'; icon: React.ReactNode }> = {
+  APPROVED: { label: 'Approved', variant: 'success', icon: <CheckCircle2 size={12} style={{ marginRight: '4px' }} /> },
+  REJECTED: { label: 'Rejected', variant: 'danger', icon: <XCircle size={12} style={{ marginRight: '4px' }} /> },
+  NOT_REQUIRED: { label: 'Not required', variant: 'default', icon: <MinusCircle size={12} style={{ marginRight: '4px' }} /> },
+  INVALIDATED: { label: 'Invalidated', variant: 'warning', icon: <AlertTriangle size={12} style={{ marginRight: '4px' }} /> },
+};
 
 export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
   approvals,
-  actionReceipts,
+  receiptsByApproval,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -68,7 +77,8 @@ export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
               </thead>
               <tbody>
                 {historyItems.map(item => {
-                  const receipt = actionReceipts.find(r => r.strategy_id === item.strategy_id);
+                  const receipt = receiptsByApproval[item.id] ?? null;
+                  const badge = DECISION_BADGES[item.decision as Exclude<Approval['decision'], 'PENDING'>];
                   const isExpanded = expandedId === item.id;
 
                   return (
@@ -85,38 +95,31 @@ export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
                         </td>
                         <td style={{ padding: '0.75rem' }}>
                           <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                            {item.strategy_id}
+                            Start {item.experiment_id}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                            {item.decision_id}
+                            {item.strategy_id} • {item.decision_id}
                           </div>
                         </td>
                         <td style={{ padding: '0.75rem' }}>
                           <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                            ${item.cost_usd?.toLocaleString()} USD
+                            {formatUsd(item.authorized_cost_usd)} USD
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                            {item.engineering_hours}h Eng Capacity
+                            {item.authorized_engineering_hours}h Eng Capacity
                           </div>
                         </td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                          ${item.threshold_usd.toLocaleString()} USD
+                          {formatUsd(item.threshold_usd)} USD
                         </td>
                         <td style={{ padding: '0.75rem' }}>
-                          {item.decision === 'APPROVED' ? (
-                            <Badge variant="success" size="sm">
-                              <CheckCircle2 size={12} style={{ marginRight: '4px' }} />
-                              Approved
-                            </Badge>
-                          ) : (
-                            <Badge variant="danger" size="sm">
-                              <XCircle size={12} style={{ marginRight: '4px' }} />
-                              Rejected
-                            </Badge>
-                          )}
+                          <Badge variant={badge?.variant ?? 'default'} size="sm">
+                            {badge?.icon}
+                            {badge?.label ?? item.decision}
+                          </Badge>
                         </td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-text-muted)' }}>
-                          {item.decided_at || item.requested_at}
+                          {formatDateTime(item.decided_at ?? item.requested_at)}
                         </td>
                         <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                           <Button
@@ -148,16 +151,24 @@ export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.8125rem' }}>
                                   <FileText size={16} style={{ color: 'var(--color-accent-blue)' }} />
-                                  Action Receipt Breakdown ({receipt?.id || 'ACT-RECEIPT'})
+                                  {receipt ? `Action Receipt Breakdown (${receipt.id})` : 'No action receipt'}
                                 </div>
-                                <Badge variant="success" size="sm">
-                                  {receipt?.status || 'SUCCESS'}
-                                </Badge>
+                                {receipt && (
+                                  <Badge variant={receipt.status === 'SUCCESS' ? 'success' : receipt.status === 'FAILED' ? 'danger' : 'default'} size="sm">
+                                    {receipt.status}
+                                  </Badge>
+                                )}
                               </div>
 
                               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
                                 <strong>Authorization Reason: </strong>{item.reason}
+                                {item.decided_by && <> • <strong>Decided by: </strong>{item.decided_by}</>}
                               </div>
+                              {!receipt && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                  The backend has not recorded a controlled action for this approval.
+                                </div>
+                              )}
 
                               {receipt && (
                                 <div
@@ -177,7 +188,7 @@ export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
                                   </div>
                                   <div>
                                     <span style={{ color: 'var(--color-text-muted)' }}>Budget Reserved: </span>
-                                    <strong>${receipt.budget_reserved_usd.toLocaleString()} USD</strong>
+                                    <strong>{formatUsd(receipt.budget_reserved_usd)} USD</strong>
                                   </div>
                                   <div>
                                     <span style={{ color: 'var(--color-text-muted)' }}>Eng Hours Reserved: </span>
@@ -185,7 +196,7 @@ export const ApprovalHistoryTable: React.FC<ApprovalHistoryTableProps> = ({
                                   </div>
                                   <div>
                                     <span style={{ color: 'var(--color-text-muted)' }}>Executed At: </span>
-                                    <strong>{receipt.executed_at}</strong>
+                                    <strong>{formatDateTime(receipt.executed_at)} • State v{receipt.state_version}</strong>
                                   </div>
                                 </div>
                               )}
