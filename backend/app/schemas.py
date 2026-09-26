@@ -609,6 +609,16 @@ class DecisionRun(StrictModel):
     completed_at: datetime | None
 
 
+class DecisionRunClaim(StrictModel):
+    run: DecisionRun | None
+    goal_id: str | None
+
+
+class DecisionRunFailureRequest(StrictModel):
+    code: str = Field(min_length=1, max_length=64)
+    message: str = Field(min_length=1, max_length=500)
+
+
 class StrategyView(CandidateStrategy):
     title: str
     subtitle: str

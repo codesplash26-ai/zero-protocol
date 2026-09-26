@@ -1068,3 +1068,74 @@ def test_no_silent_mock_fallback_on_backend_failure(
     assert exc_info.value.error_code == (
         "DATABASE_UNAVAILABLE"
     )
+
+
+RUN_PAYLOAD = {
+    "id": "RUN-001",
+    "decision_id": "DEC-001",
+    "run_type": "INITIAL",
+    "status": "RUNNING",
+    "result": None,
+    "trigger_event_id": None,
+    "trigger_approval_id": None,
+    "input_state_version": 1,
+    "recommendation_state_version": None,
+    "error": None,
+    "created_at": "2026-09-26T08:00:00Z",
+    "completed_at": None,
+}
+
+
+def test_claim_decision_run_sends_internal_key_and_parses_claim():
+    captured = {}
+
+    def handler(request):
+        captured["path"] = request.url.path
+        captured["key"] = request.headers.get("X-Internal-Service-Key")
+        return httpx.Response(
+            200,
+            json={"run": RUN_PAYLOAD, "goal_id": "GOAL-001"},
+        )
+
+    client = BackendClient(
+        "http://backend.test",
+        internal_service_key="secret",
+        client=httpx.Client(
+            base_url="http://backend.test",
+            transport=httpx.MockTransport(handler),
+        ),
+    )
+
+    claim = client.claim_decision_run()
+
+    assert captured == {
+        "path": "/api/v1/internal/decision-runs/claim",
+        "key": "secret",
+    }
+    assert claim.goal_id == "GOAL-001"
+    assert claim.run.id == "RUN-001"
+
+
+def test_fail_decision_run_truncates_code_and_message():
+    captured = {}
+
+    def handler(request):
+        captured["path"] = request.url.path
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(
+            200,
+            json={**RUN_PAYLOAD, "status": "FAILED"},
+        )
+
+    client = _client(handler)
+
+    result = client.fail_decision_run(
+        "RUN-001",
+        code="X" * 100,
+        message="m" * 900,
+    )
+
+    assert captured["path"] == "/api/v1/internal/decision-runs/RUN-001/fail"
+    assert len(captured["body"]["code"]) == 64
+    assert len(captured["body"]["message"]) == 500
+    assert result.status == "FAILED"

@@ -419,3 +419,33 @@ class MaterialityResult(BaseModel):
     )
 
     state_version: int = Field(ge=1)
+
+
+class DecisionRunType(str, Enum):
+    INITIAL = "INITIAL"
+    MATERIAL_EVENT = "MATERIAL_EVENT"
+    APPROVAL_REPLAN_REQUEST = "APPROVAL_REPLAN_REQUEST"
+
+
+class DecisionRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    decision_id: str
+    run_type: DecisionRunType
+    status: str
+    result: str | None
+    trigger_event_id: str | None
+    trigger_approval_id: str | None
+    input_state_version: int = Field(ge=1)
+    recommendation_state_version: int | None
+    error: dict | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class DecisionRunClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run: DecisionRun | None
+    goal_id: str | None
