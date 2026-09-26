@@ -117,3 +117,12 @@ html.eg-present {
 html.eg-present .eg-tech {
   display: none !important;
 }
+
+/* Buttons: gentle hover feedback and a clear keyboard focus ring. */
+.eg-button:not(:disabled):hover {
+  filter: brightness(0.95);
+}
+.eg-button:focus-visible {
+  outline: 2px solid var(--color-accent-blue) !important;
+  outline-offset: 2px;
+}

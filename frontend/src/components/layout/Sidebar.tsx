@@ -9,9 +9,9 @@ import {
   FileText,
   Settings,
   X,
-  ShieldAlert,
   Home,
 } from 'lucide-react';
+import { BrandMark } from '../ui/BrandMark';
 import { Badge } from '../ui/Badge';
 import { useGovernorData } from '../../state/governorContext';
 import { describeGovernor } from '../../lib/governorStatus';
@@ -150,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
                 color: 'var(--color-governor-teal-accent)',
               }}
             >
-              <ShieldAlert size={20} />
+              <BrandMark size={20} />
             </div>
             <div>
               <div
