@@ -47,37 +47,106 @@ before it is persisted, and the browser never changes authoritative state locall
 
 ## Prerequisites
 
-- Docker with Docker Compose v2 (Docker Desktop on Windows/macOS)
-- Optional: a Groq and/or Gemini API key. Without keys the system still runs using the
-  built-in rule-based fallback (see Change Log).
+| Requirement | Notes |
+|---|---|
+| **Docker Desktop** (Windows/macOS) or **Docker Engine** (Linux) | Must be running before you start. |
+| **Docker Compose v2.24 or newer** | Included with current Docker Desktop. Check with `docker compose version`. |
+| **Git** | To clone the repository. |
+| **About 8 GB free disk space** | The images total about 3 GB; building needs extra room. |
+| **Free ports 5173, 8000 and 5432** | They can be changed in `.env` (see *Configuration*). |
+| **Internet access for the first build** | Downloads base images and dependencies. |
+| **Groq API key (recommended)** | Optional but recommended; see *Step 2*. |
 
-Node.js 22 and Python 3.11 are only needed for running checks outside Docker.
+Nothing else is needed: Node.js and Python run inside the containers.
 
-## Run with Docker Compose
+## Getting started
+
+### Step 1 — Clone the repository
+
+```bash
+git clone https://github.com/codesplash26-ai/zero-protocol.git
+cd zero-protocol
+```
+
+### Step 2 — Add an LLM API key (recommended)
+
+The Governor's reasoning steps use an LLM. The provider order is
+**Groq → Gemini → built-in rule-based fallback**, and providers without a key are skipped.
+
+- **Groq is recommended** as the primary provider: in our testing it was the most
+  reliable and the fastest. Get a free key at <https://console.groq.com/keys>.
+  The free tier has a daily token limit (200,000 tokens per day for the default
+  model at the time of writing). When it is reached, the Governor falls back
+  automatically and keeps working.
+- **Gemini is the secondary option**, used only if Groq is unavailable. Get a key at
+  <https://aistudio.google.com/apikey>.
+- **No key?** The system still runs end to end using the rule-based fallback;
+  recommendations are then labelled `[Deterministic fallback]`.
+
+Create a `.env` file next to `docker-compose.yml` from the template and add your key(s):
+
+```bash
+cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
+```
+
+```ini
+GROQ_API_KEY=your-groq-key       # recommended
+GEMINI_API_KEY=your-gemini-key   # optional backup
+```
+
+`.env` is git-ignored; never commit it. You can skip this step and add a key later
+(restart with `docker compose up -d` after editing `.env`).
+
+### Step 3 — Build and start
 
 ```bash
 docker compose up --build
 ```
 
+The first build takes several minutes; later starts take seconds. Four containers
+start: `postgres`, `backend`, `agent` and `frontend`. Database migrations and the
+PulseBoard demo data are applied automatically. The system is ready when the frontend
+container reports healthy (`docker compose ps`) or http://localhost:8000/ready
+returns `"status":"ready"`.
+
+### Step 4 — Open the application
+
 | URL | What |
 |---|---|
-| http://localhost:5173 | Landing page (problem, features, how it works) → *Try the live demo* opens the dashboard |
+| http://localhost:5173 | Landing page; **Watch it decide** opens the dashboard with the guided demo |
 | http://localhost:5173/overview | Experiment Governor dashboard |
 | http://localhost:8000/docs | Interactive API documentation |
-| http://localhost:8000/ready | Backend + database readiness |
+| http://localhost:8000/ready | Backend and database readiness |
 
-Database migrations and the PulseBoard demo seed run automatically when the backend
-starts. To return to the initial demo state, click **Reset demo** in the app header
-(or run `docker compose down -v`, then `docker compose up --build`).
+Then follow the *Demo walkthrough* below.
 
-### Configuration (optional)
+### Step 5 — Reset, stop or clean up
 
-Everything has working defaults. To use LLM providers, create a `.env` file next to
-`docker-compose.yml` (see `.env.example`); it is git-ignored and must not be committed.
+| Action | How |
+|---|---|
+| Restart the demo from the beginning | **Reset demo** in the app header |
+| Stop the system | `Ctrl+C` in the terminal, or `docker compose down` |
+| Stop and delete all data | `docker compose down -v` (the next start re-seeds the demo) |
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `port is already allocated` | Free the port, or set `FRONTEND_PORT` / `BACKEND_PORT` / `POSTGRES_PORT` in `.env`. |
+| `env_file` / `required` error on start | Update Docker Compose to v2.24 or newer. |
+| Build fails with `no space left on device` | Free disk space (for example `docker builder prune`) and run the build again. |
+| A download fails during the build (for example `npm ci`) | Usually a network blip; run `docker compose up --build` again. |
+| Dashboard shows *Backend unavailable* | Wait for the backend to become healthy, then press *Retry*. |
+| Recommendations say `[Deterministic fallback]` | No LLM provider answered. Check `docker compose logs agent`: `Groq failed (RateLimitError)` means the free daily token limit is used up (wait, or use another key); `AuthenticationError` means the key is wrong. Fix `.env`, then run `docker compose up -d`. |
+| Gemini returns `403 permission denied` | The Google project behind the key has no access; create a key in a new project at <https://aistudio.google.com/apikey>. |
+
+### Configuration
+
+Everything has working defaults; `.env` is only needed for API keys or changes.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GROQ_API_KEY` | empty | Primary LLM provider (skipped when empty) |
+| `GROQ_API_KEY` | empty | **Recommended** primary LLM provider (skipped when empty) |
 | `GROQ_MODEL` | `openai/gpt-oss-20b` | Groq model |
 | `GEMINI_API_KEY` | empty | Secondary LLM provider (skipped when empty) |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model |
@@ -93,7 +162,7 @@ protected Enterprise SSO commitment), 10,000 sessions and a $2,000 approval
 threshold. Experiments: **A** pricing test ($600, 6h), **B** annual-plan checkout
 ($2,500, 24h, depends on A), **C** referral prototype ($1,800, 16h).
 
-Click **Try the live demo** on the landing page. A **Guided demo** panel lists the seven
+Click **Watch it decide** on the landing page. A **Guided demo** panel lists the seven
 steps below and ticks each one off from live backend state; the **Next step** bar at the
 top of every page also shows what to do next.
 
@@ -156,6 +225,17 @@ cd frontend && npm ci && npm run lint && npm run build
 - The dashboard polls for run progress instead of using server-sent events.
 - LLM outputs vary between runs; all numbers, feasibility and approvals are always
   decided by deterministic backend code.
+
+## Open-source acknowledgements
+
+Built with open-source software, used under their respective licenses:
+[React](https://react.dev), [Vite](https://vite.dev), [TypeScript](https://www.typescriptlang.org),
+[React Router](https://reactrouter.com), [Lucide](https://lucide.dev) icons,
+[FastAPI](https://fastapi.tiangolo.com), [Pydantic](https://docs.pydantic.dev),
+[SQLAlchemy](https://www.sqlalchemy.org), [Alembic](https://alembic.sqlalchemy.org),
+[PostgreSQL](https://www.postgresql.org), [LangGraph](https://github.com/langchain-ai/langgraph),
+[Google OR-Tools](https://developers.google.com/optimization) (CP-SAT), [nginx](https://nginx.org)
+and [Docker](https://www.docker.com). LLM access uses the Groq and Google Gemini APIs.
 
 ## Change Log
 

@@ -63,7 +63,7 @@ class FallbackProvider:
                 )
 
                 print(
-                    "Groq failed. "
+                    f"Groq failed ({type(error).__name__}). "
                     "Trying Gemini..."
                 )
 
