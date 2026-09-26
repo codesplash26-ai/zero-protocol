@@ -43,6 +43,9 @@ services:
 
       IMPORT_MAX_BYTES: ${IMPORT_MAX_BYTES:-5242880}
 
+      # Enables the in-app "Reset demo" button (POST /api/v1/demo/reset).
+      DEMO_MODE: ${DEMO_MODE:-true}
+
     ports:
       - "${BACKEND_PORT:-8000}:8000"
 
