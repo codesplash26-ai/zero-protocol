@@ -13,13 +13,13 @@ const TONES = {
 
 /** "What do I do next?" — shown above every page, computed from live backend state. */
 export const NextStepBar: React.FC = () => {
-  const { overview, currentRun, materialEvents, error } = useGovernorData();
+  const { overview, currentRun, materialEvents, goalChanged, error } = useGovernorData();
   const location = useLocation();
   const navigate = useNavigate();
 
   if (!overview || error) return null;
 
-  const step = computeNextStep(overview, currentRun, materialEvents);
+  const step = computeNextStep(overview, currentRun, materialEvents, goalChanged);
   const tone = TONES[step.tone];
   const onTargetPage = step.action?.to === location.pathname;
   const icon =

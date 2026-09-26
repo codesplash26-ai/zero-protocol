@@ -1,6 +1,7 @@
 import type { DecisionRun, Event, Experiment, OverviewSnapshot, Recommendation } from '../types/contract';
 import { isRunActive } from '../hooks/usePollRun';
 import { formatUsd } from './format';
+import { findNothingFits } from './capacity';
 
 const INACTIVE: ReadonlySet<Experiment['status']> = new Set(['COMPLETED', 'REJECTED']);
 
@@ -40,6 +41,7 @@ export function computeNextStep(
   overview: OverviewSnapshot,
   currentRun: DecisionRun | null,
   materialEvents: Event[],
+  goalChanged = false,
 ): NextStep {
   const { governor_status: governor, latest_recommendation: recommendation, experiments } = overview;
   const stateVersion = overview.organization_state.state_version;
@@ -51,11 +53,27 @@ export function computeNextStep(
       action: { label: 'View progress', to: '/decision' },
     };
   }
+  // Running the Governor again cannot help until an experiment fits the resources left.
+  const nothingFits = findNothingFits(overview);
+  if (nothingFits && (goalChanged || governor.state === 'FAILED')) {
+    return {
+      tone: 'warning',
+      message: `${goalChanged ? 'Your goal changed, but there' : 'The last Governor run found nothing feasible. There'} is no remaining experiment that fits the budget, hours and traffic left. Add a cheaper experiment first.`,
+      action: { label: 'Open Experiments', to: '/experiments' },
+    };
+  }
   if (governor.state === 'FAILED') {
     return {
       tone: 'warning',
       message: 'The last Governor run failed. Open the Decision page to see why and run it again.',
       action: { label: 'Open Decision', to: '/decision' },
+    };
+  }
+  if (goalChanged) {
+    return {
+      tone: 'action',
+      message: 'Your goal changed. Run the Governor so the plan is built for the new goal.',
+      action: { label: 'Run the Governor', to: '/decision' },
     };
   }
   if (!recommendation) {
