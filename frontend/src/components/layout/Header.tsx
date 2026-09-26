@@ -134,14 +134,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, guideOpen, onT
       {/* Right Area: Profile / Executive Context */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <div className="eg-header-demo-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Button variant={guideOpen ? 'teal' : 'outline'} size="sm" icon={<MapIcon size={14} />} onClick={onToggleGuide}>
+          <Button variant={guideOpen ? 'teal' : 'soft'} size="sm" icon={<MapIcon size={14} />} onClick={onToggleGuide}>
             Demo guide
           </Button>
-          <Button variant="outline" size="sm" icon={<RotateCcw size={14} />} onClick={onResetDemo} disabled={!organization}>
+          <Button variant="soft" size="sm" icon={<RotateCcw size={14} />} onClick={onResetDemo} disabled={!organization}>
             Reset demo
           </Button>
           <Button
-            variant={presenting ? 'teal' : 'outline'}
+            variant={presenting ? 'teal' : 'soft'}
             size="sm"
             icon={<Presentation size={14} />}
             onClick={togglePresenting}

@@ -45,15 +45,19 @@ export const DemoGuide: React.FC<DemoGuideProps> = ({ open, onClose, onOpen }) =
       <button
         type="button"
         onClick={onOpen}
+        className="eg-button"
         style={{
           ...shell,
+          // Solid brand colour: the collapsed launcher must stand out from page content.
+          backgroundColor: 'var(--color-governor-teal)',
+          border: '1px solid var(--color-governor-teal)',
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
           padding: '0.625rem 0.875rem',
           fontSize: '0.8125rem',
           fontWeight: 600,
-          color: 'var(--color-governor-teal)',
+          color: '#FFFFFF',
           cursor: 'pointer',
         }}
       >

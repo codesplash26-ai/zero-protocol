@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'teal' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'teal' | 'danger' | 'soft';
   size?: 'sm' | 'md' | 'lg';
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
@@ -56,10 +56,19 @@ export const Button: React.FC<ButtonProps> = ({
       color: '#FFFFFF',
       borderColor: 'var(--color-governor-teal)',
     },
+    // White with a firm border and slight lift, so secondary actions stay visible on grey pages.
     outline: {
-      backgroundColor: 'transparent',
+      backgroundColor: '#FFFFFF',
       color: 'var(--color-text-main)',
-      borderColor: 'var(--color-border)',
+      borderColor: '#CBD5E1',
+      boxShadow: 'var(--shadow-sm)',
+    },
+    // Tinted brand style for always-available tools (e.g. Demo guide, Reset demo, Present).
+    soft: {
+      backgroundColor: '#CCFBF1',
+      color: 'var(--color-governor-teal)',
+      borderColor: '#5EEAD4',
+      fontWeight: 600,
     },
     ghost: {
       backgroundColor: 'transparent',
