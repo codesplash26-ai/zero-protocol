@@ -15,6 +15,10 @@ from tools.strategy_ids import (
     normalize_candidate_strategies,
 )
 
+from tools.strategy_validation import (
+    strategy_consistency_violations,
+)
+
 
 def generate_strategies_node(
     state: AgentState,
@@ -195,6 +199,13 @@ Generate candidate strategies.
 
         if sequence_ids.intersection(
             completed_ids
+        ):
+            continue
+
+        # Backend rejects inconsistent candidates with
+        # INVALID_STRATEGY, which would fail the whole run.
+        if strategy_consistency_violations(
+            strategy
         ):
             continue
 

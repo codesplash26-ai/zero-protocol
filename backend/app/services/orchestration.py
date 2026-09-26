@@ -382,13 +382,10 @@ def persist_recommendation(
             experiment_ids=selected.experiment_ids,
         ),
     )
-    existing = session.get(CandidateStrategyRecord, selected.id)
-    if existing is not None and existing.decision_id != decision.id:
-        raise APIError(
-            409,
-            "STRATEGY_ID_CONFLICT",
-            "The strategy identifier belongs to another decision.",
-        )
+    # Strategy identity is scoped to the decision (composite key).
+    existing = session.get(
+        CandidateStrategyRecord, {"decision_id": decision.id, "id": selected.id}
+    )
     if existing is not None and existing.experiment_ids != selected.experiment_ids:
         raise APIError(
             409,

@@ -117,3 +117,73 @@ def test_claim_times_out_stale_running_runs(client, session_factory):
 
     assert polled["status"] == "FAILED"
     assert polled["error"]["code"] == "RUN_TIMEOUT"
+
+
+def test_separate_decisions_can_each_hold_the_same_strategy_id(client):
+    recommendation = {
+        "recommended_strategy_id": "STRATEGY-A",
+        "now": ["A"],
+        "next": [],
+        "later": [],
+        "defer": ["B", "C"],
+        "reasoning_summary": "A is the cheapest prerequisite.",
+        "requires_approval": False,
+        "state_version": 1,
+    }
+    first = create_decision(client, key="decision-one").json()
+    persisted_first = client.post(
+        "/api/v1/recommendations",
+        json={**recommendation, "decision_id": first["decision_id"]},
+        headers={**SERVICE_HEADERS, "Idempotency-Key": "rec-decision-one"},
+    )
+    second = create_decision(client, key="decision-two").json()
+    persisted_second = client.post(
+        "/api/v1/recommendations",
+        json={**recommendation, "decision_id": second["decision_id"]},
+        headers={**SERVICE_HEADERS, "Idempotency-Key": "rec-decision-two"},
+    )
+
+    assert persisted_first.status_code == 201, persisted_first.text
+    assert second["decision_id"] != first["decision_id"]
+    assert persisted_second.status_code == 201, persisted_second.text
+    for run in (first, second):
+        decision_id = run["decision_id"]
+        workspace = client.get(f"/api/v1/decisions/{decision_id}/workspace").json()
+        assert [item["id"] for item in workspace["strategies"]] == ["STRATEGY-A"]
+        assert workspace["recommendation"]["decision_id"] == decision_id
+        assert workspace["latest_run"]["status"] == "SUCCEEDED"
+        approvals = client.get(
+            "/api/v1/approvals", params={"decision_id": decision_id}
+        ).json()["items"]
+        assert [(a["decision_id"], a["strategy_id"]) for a in approvals] == [
+            (decision_id, "STRATEGY-A")
+        ]
+
+
+def test_same_strategy_id_with_different_scope_in_one_decision_is_rejected(client):
+    run = create_decision(client).json()
+    base = {
+        "decision_id": run["decision_id"],
+        "recommended_strategy_id": "STRATEGY-X",
+        "now": ["A"],
+        "next": [],
+        "later": [],
+        "defer": [],
+        "reasoning_summary": "First scope.",
+        "requires_approval": False,
+        "state_version": 1,
+    }
+    client.post(
+        "/api/v1/recommendations",
+        json=base,
+        headers={**SERVICE_HEADERS, "Idempotency-Key": "scope-one"},
+    )
+
+    conflicting = client.post(
+        "/api/v1/recommendations",
+        json={**base, "now": ["C"], "reasoning_summary": "Different scope."},
+        headers={**SERVICE_HEADERS, "Idempotency-Key": "scope-two"},
+    )
+
+    assert conflicting.status_code == 409
+    assert conflicting.json()["error"]["code"] == "STRATEGY_SCOPE_CONFLICT"

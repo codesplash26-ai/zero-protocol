@@ -103,8 +103,10 @@ def _load_scope(
     decision = session.get(Decision, decision_id)
     if decision is None or decision.organization_id != organization_id:
         raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
-    strategy = session.get(CandidateStrategyRecord, strategy_id)
-    if strategy is None or strategy.decision_id != decision_id:
+    strategy = session.get(
+        CandidateStrategyRecord, {"decision_id": decision_id, "id": strategy_id}
+    )
+    if strategy is None:
         raise APIError(404, "STRATEGY_NOT_FOUND", "The strategy was not found.")
     if experiment_id not in strategy.experiment_ids:
         raise APIError(
@@ -136,8 +138,10 @@ def _load_strategy_scope(
     decision = session.get(Decision, decision_id)
     if decision is None or decision.organization_id != organization_id:
         raise APIError(404, "DECISION_NOT_FOUND", "The decision was not found.")
-    strategy = session.get(CandidateStrategyRecord, strategy_id)
-    if strategy is None or strategy.decision_id != decision_id:
+    strategy = session.get(
+        CandidateStrategyRecord, {"decision_id": decision_id, "id": strategy_id}
+    )
+    if strategy is None:
         raise APIError(404, "STRATEGY_NOT_FOUND", "The strategy was not found.")
 
     records = session.scalars(

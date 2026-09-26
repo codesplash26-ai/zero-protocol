@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Integer,
     LargeBinary,
+    PrimaryKeyConstraint,
     String,
     Table,
     Text,
@@ -360,8 +361,13 @@ class DecisionRun(Base):
 
 class CandidateStrategyRecord(Base):
     __tablename__ = "candidate_strategies"
+    # Strategy IDs are opaque and only unique within one decision: separate
+    # decisions may each contain an equivalent strategy such as STRATEGY-A.
+    __table_args__ = (
+        PrimaryKeyConstraint("decision_id", "id", name="pk_candidate_strategies"),
+    )
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(64))
     decision_id: Mapped[str] = mapped_column(
         ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -401,14 +407,20 @@ class SolverRun(Base):
 
 class RecommendationRecord(Base):
     __tablename__ = "recommendations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["decision_id", "recommended_strategy_id"],
+            ["candidate_strategies.decision_id", "candidate_strategies.id"],
+            ondelete="RESTRICT",
+            name="fk_recommendations_strategy",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     decision_id: Mapped[str] = mapped_column(
         ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    recommended_strategy_id: Mapped[str] = mapped_column(
-        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"), nullable=False
-    )
+    recommended_strategy_id: Mapped[str] = mapped_column(String(64), nullable=False)
     current_executable_experiment_id: Mapped[str | None] = mapped_column(
         ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=True
     )
@@ -450,17 +462,19 @@ class ApprovalRecord(Base):
             "state_version",
             name="uq_approval_scope_state",
         ),
+        ForeignKeyConstraint(
+            ["decision_id", "strategy_id"],
+            ["candidate_strategies.decision_id", "candidate_strategies.id"],
+            ondelete="RESTRICT",
+            name="fk_approvals_strategy",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     decision_id: Mapped[str] = mapped_column(
         ForeignKey("decisions.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    strategy_id: Mapped[str] = mapped_column(
-        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
+    strategy_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     experiment_id: Mapped[str] = mapped_column(
         ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -494,6 +508,12 @@ class ActionReceiptRecord(Base):
             name="ck_receipt_engineering_nonnegative",
         ),
         UniqueConstraint("approval_id", name="uq_action_receipt_approval"),
+        ForeignKeyConstraint(
+            ["decision_id", "strategy_id"],
+            ["candidate_strategies.decision_id", "candidate_strategies.id"],
+            ondelete="RESTRICT",
+            name="fk_action_receipts_strategy",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -503,9 +523,7 @@ class ActionReceiptRecord(Base):
     decision_id: Mapped[str] = mapped_column(
         ForeignKey("decisions.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    strategy_id: Mapped[str] = mapped_column(
-        ForeignKey("candidate_strategies.id", ondelete="RESTRICT"), nullable=False
-    )
+    strategy_id: Mapped[str] = mapped_column(String(64), nullable=False)
     experiment_id: Mapped[str] = mapped_column(
         ForeignKey("experiments.id", ondelete="RESTRICT"), nullable=False, index=True
     )
