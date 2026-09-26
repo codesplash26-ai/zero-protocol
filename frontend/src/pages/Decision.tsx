@@ -9,6 +9,8 @@ import { StrategyCard } from '../components/decision/StrategyCard';
 import { EvidencePanel } from '../components/decision/EvidencePanel';
 import { RecommendationBanner } from '../components/decision/RecommendationBanner';
 import { RunStatusCard } from '../components/decision/RunStatusCard';
+import { TechnicalDetails } from '../components/ui/TechnicalDetails';
+import { Term } from '../components/ui/Term';
 import { useGovernorData } from '../state/governorContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { isRunActive } from '../hooks/usePollRun';
@@ -133,7 +135,7 @@ export const Decision: React.FC = () => {
         activeGoal ? (
           // A fresh decision at the current state; Step 6 made repeat decisions safe.
           <Button
-            variant={!decisionId || missingFromPlan.length > 0 ? 'teal' : 'outline'}
+            variant={!decisionId ? 'teal' : 'outline'}
             icon={decisionId ? <RefreshCw size={16} /> : <Play size={16} />}
             onClick={handleRunGovernor}
             disabled={!canStart}
@@ -304,19 +306,37 @@ export const Decision: React.FC = () => {
                   <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
                     The workspace persists the recommended strategy only; other candidates the Governor evaluated are not
                     stored by the backend.
-                    {ws.optimization_result && ws.optimization_result.feasible_combinations.length > 0 && (
+                  </div>
+                )}
+                <TechnicalDetails>
+                  <div>
+                    Decision: <code>{decisionId}</code>
+                    {latestRun && (
                       <>
                         {' '}
-                        CP-SAT feasible experiment sets at state v{ws.optimization_result.evaluated_state_version}:{' '}
-                        <strong style={{ color: 'var(--color-text-main)' }}>
-                          {ws.optimization_result.feasible_combinations
-                            .map((combo) => (combo.length ? `{${combo.join(', ')}}` : '{}'))
-                            .join('  ')}
-                        </strong>
+                        • Latest run: <code>{latestRun.id}</code> ({latestRun.status})
                       </>
                     )}
                   </div>
-                )}
+                  {ws.optimization_result && (
+                    <>
+                      <div>
+                        <Term k="cpsat">CP-SAT</Term> solver: {ws.optimization_result.status} at state v
+                        {ws.optimization_result.evaluated_state_version} • run <code>{ws.optimization_result.solver_run_id}</code>
+                      </div>
+                      {ws.optimization_result.feasible_combinations.length > 0 && (
+                        <div>
+                          Feasible experiment sets:{' '}
+                          <strong style={{ color: 'var(--color-text-main)' }}>
+                            {ws.optimization_result.feasible_combinations
+                              .map((combo) => (combo.length ? `{${combo.join(', ')}}` : '{}'))
+                              .join('  ')}
+                          </strong>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </TechnicalDetails>
               </div>
             </Section>
           )}

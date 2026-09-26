@@ -186,7 +186,7 @@ export const Events: React.FC = () => {
               Simulate Event
             </Button>
             {activeMaterialEvent && (
-              <Button variant="primary" size="sm" onClick={() => openReplan(activeMaterialEvent)} icon={<RefreshCw size={14} />}>
+              <Button variant="outline" size="sm" onClick={() => openReplan(activeMaterialEvent)} icon={<RefreshCw size={14} />}>
                 Trigger Re-Plan
               </Button>
             )}

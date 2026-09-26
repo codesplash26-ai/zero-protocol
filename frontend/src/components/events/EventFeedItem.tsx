@@ -133,7 +133,7 @@ export const EventFeedItem: React.FC<EventFeedItemProps> = ({
 
             {isMaterial && canReplan && (
               <Button
-                variant="primary"
+                variant="outline"
                 size="sm"
                 onClick={() => onTriggerReplan(event)}
                 icon={<RefreshCw size={14} />}

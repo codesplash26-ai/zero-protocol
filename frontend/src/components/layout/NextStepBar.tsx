@@ -3,8 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Compass, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useGovernorData } from '../../state/governorContext';
-import { useApiResource } from '../../hooks/useApiResource';
-import { api } from '../../api/endpoints';
 import { computeNextStep } from '../../lib/nextStep';
 
 const TONES = {
@@ -15,18 +13,13 @@ const TONES = {
 
 /** "What do I do next?" — shown above every page, computed from live backend state. */
 export const NextStepBar: React.FC = () => {
-  const { overview, currentRun, error, refreshedAt } = useGovernorData();
+  const { overview, currentRun, materialEvents, error } = useGovernorData();
   const location = useLocation();
   const navigate = useNavigate();
-  const materialEvents = useApiResource(
-    overview ? 'next-step-material-events' : null,
-    () => api.listEvents({ potentially_material: true, limit: 20 }),
-    refreshedAt,
-  );
 
   if (!overview || error) return null;
 
-  const step = computeNextStep(overview, currentRun, materialEvents.data?.items ?? []);
+  const step = computeNextStep(overview, currentRun, materialEvents);
   const tone = TONES[step.tone];
   const onTargetPage = step.action?.to === location.pathname;
   const icon =

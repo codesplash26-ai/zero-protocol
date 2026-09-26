@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Term } from '../components/ui/Term';
 import { Section } from '../components/ui/Section';
 import { Badge } from '../components/ui/Badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
@@ -179,7 +180,7 @@ export const Approvals: React.FC = () => {
   const header = (
     <PageHeader
       title="Approvals & Governance"
-      description="Review and authorize high-impact experimentation strategies exceeding governance thresholds."
+      description="Approve or decline experiments that cost more than your spending threshold."
       badge={<Badge variant="warning">Governance Engine</Badge>}
     />
   );
@@ -295,8 +296,8 @@ export const Approvals: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-                    The backend has no approval in PENDING state. Actions within the approval threshold appear below as
-                    ready to start.
+                    The backend has no approval in PENDING state. Actions within the{' '}
+                    <Term k="approvalThreshold">approval threshold</Term> appear below as ready to start.
                   </p>
                 </CardContent>
               </Card>
@@ -306,6 +307,10 @@ export const Approvals: React.FC = () => {
           {/* 2b. AUTHORIZED ACTIONS NOT YET EXECUTED */}
           {readyToStart.length > 0 && (
             <Section title={`Ready to Start (${readyToStart.length})`}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', margin: '0 0 0.75rem' }}>
+                Starting an experiment is a <Term k="controlledAction">controlled action</Term>: the backend re-checks
+                budget, capacity and state before applying it and records a receipt.
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {readyToStart.map((approval) => (
                   <StartActionCard

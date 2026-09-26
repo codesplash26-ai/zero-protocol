@@ -9,12 +9,15 @@ import { GovernorStatusCard } from '../components/dashboard/GovernorStatusCard';
 import { ExperimentSummaryTable } from '../components/dashboard/ExperimentSummaryTable';
 import { ResourceAllocationSection } from '../components/dashboard/ResourceAllocationSection';
 import { ActivityTimeline } from '../components/dashboard/ActivityTimeline';
+import { JourneyStrip } from '../components/dashboard/JourneyStrip';
+import { computeJourney } from '../lib/journey';
+import { Term } from '../components/ui/Term';
 import { useGovernorData } from '../state/governorContext';
 import { formatUsd } from '../lib/format';
 import { DollarSign, Cpu, Users, Lock } from 'lucide-react';
 
 export const Overview: React.FC = () => {
-  const { overview, governorStatus, isLoading, error, refresh } = useGovernorData();
+  const { overview, governorStatus, isLoading, error, refresh, currentRun, materialEvents } = useGovernorData();
 
   // Never render stale or placeholder values as the startup's current state.
   if (!overview || error) {
@@ -40,8 +43,14 @@ export const Overview: React.FC = () => {
         title="Overview"
         description="Your startup's current decision state and operating context."
         badge={<Badge variant="default">{organization_state.organization_name} Workspace</Badge>}
-        actions={<Badge variant="teal">State v{organization_state.state_version}</Badge>}
+        actions={
+          <Badge variant="teal">
+            <Term k="stateVersion">State v{organization_state.state_version}</Term>
+          </Badge>
+        }
       />
+
+      <JourneyStrip position={computeJourney(overview, currentRun, materialEvents)} />
 
       {/* 2. STARTUP SNAPSHOT (4 Metric Cards) */}
       <Section>

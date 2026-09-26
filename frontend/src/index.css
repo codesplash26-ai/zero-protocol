@@ -109,3 +109,11 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+/* Presentation mode (header toggle): rem-based layout scales up, technical details hide. */
+html.eg-present {
+  font-size: 112.5%;
+}
+html.eg-present .eg-tech {
+  display: none !important;
+}

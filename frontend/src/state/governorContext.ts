@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { ApiError } from '../api/client';
 import type {
   DecisionRun,
+  Event,
   GovernorStatus,
   OrganizationState,
   OverviewSnapshot,
@@ -15,6 +16,8 @@ import type {
 export interface GovernorData {
   /** Last successful GET /overview response. */
   overview: OverviewSnapshot | null;
+  /** Potentially material events, loaded with every refresh (newest first). */
+  materialEvents: Event[];
   organization: OrganizationState | null;
   stateVersion: number | null;
   /** Null while loading or when the backend is unreachable; never fabricated. */
