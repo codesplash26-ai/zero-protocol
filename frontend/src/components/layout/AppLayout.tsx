@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ConnectionBanner } from './ConnectionBanner';
+import { NextStepBar } from './NextStepBar';
 
 export const AppLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -32,6 +33,7 @@ export const AppLayout: React.FC = () => {
           }}
         >
           <ConnectionBanner />
+          <NextStepBar />
           <Outlet />
         </main>
       </div>

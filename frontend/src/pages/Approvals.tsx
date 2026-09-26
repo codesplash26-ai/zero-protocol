@@ -42,7 +42,7 @@ async function loadApprovals(): Promise<ApprovalsData> {
 type Notice = { tone: 'success' | 'error'; text: string };
 
 export const Approvals: React.FC = () => {
-  const { overview, stateVersion, refreshedAt, isLoading, error, refresh, trackRun } = useGovernorData();
+  const { overview, stateVersion, decisionId, refreshedAt, isLoading, error, refresh, trackRun } = useGovernorData();
   const data = useApiResource('approvals', loadApprovals, refreshedAt);
   const [activeModal, setActiveModal] = useState<{ approval: Approval; mode: 'APPROVE' | 'REJECT' } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,11 +54,14 @@ export const Approvals: React.FC = () => {
   const experiments = overview?.experiments ?? [];
   const experimentName = (id: string) => experiments.find((item) => item.id === id)?.name ?? null;
 
-  const pending = approvals.filter((item) => item.decision === 'PENDING');
+  // Act only on the decision being followed; approvals of earlier decisions stay in the history.
+  const isCurrentDecision = (item: Approval) => !decisionId || item.decision_id === decisionId;
+  const pending = approvals.filter((item) => item.decision === 'PENDING' && isCurrentDecision(item));
   // Authorized but not executed, and still bound to the current organization state.
   const readyToStart = approvals.filter(
     (item) =>
       (item.decision === 'APPROVED' || item.decision === 'NOT_REQUIRED') &&
+      isCurrentDecision(item) &&
       !receiptsByApproval[item.id] &&
       item.state_version === stateVersion &&
       experiments.some((exp) => exp.id === item.experiment_id && (exp.status === 'PROPOSED' || exp.status === 'APPROVED')),

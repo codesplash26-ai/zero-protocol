@@ -16,7 +16,8 @@ import { api } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { describeApiError } from '../lib/apiErrors';
 import type { Goal } from '../types/contract';
-import { Target, Calendar, Lock, Play } from 'lucide-react';
+import { experimentsMissingFromPlan } from '../lib/nextStep';
+import { Target, Calendar, Lock, Play, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const GoalCard: React.FC<{ goal: Goal; primaryConstraint: string | null }> = ({ goal, primaryConstraint }) => (
   <Card padding="lg" style={{ borderLeft: '4px solid var(--color-accent-blue)' }}>
@@ -102,6 +103,10 @@ export const Decision: React.FC = () => {
   const runForDecision = currentRun && currentRun.decision_id === decisionId ? currentRun : null;
   const running = isRunActive(runForDecision) || isRunActive(workspace.data?.latest_run);
   const canStart = !!activeGoal && stateVersion !== null && !running && !starting;
+  const missingFromPlan = experimentsMissingFromPlan(
+    workspace.data?.recommendation ?? null,
+    overview?.experiments ?? [],
+  );
 
   const handleRunGovernor = async () => {
     if (!activeGoal || stateVersion === null) return;
@@ -125,9 +130,15 @@ export const Decision: React.FC = () => {
       description="Founder decision workspace."
       badge={<Badge variant="teal">Decision Engine</Badge>}
       actions={
-        !decisionId && activeGoal ? (
-          <Button variant="teal" icon={<Play size={16} />} onClick={handleRunGovernor} disabled={!canStart}>
-            {starting ? 'Starting…' : 'Run Governor'}
+        activeGoal ? (
+          // A fresh decision at the current state; Step 6 made repeat decisions safe.
+          <Button
+            variant={!decisionId || missingFromPlan.length > 0 ? 'teal' : 'outline'}
+            icon={decisionId ? <RefreshCw size={16} /> : <Play size={16} />}
+            onClick={handleRunGovernor}
+            disabled={!canStart}
+          >
+            {starting ? 'Starting…' : decisionId ? 'Re-run Governor' : 'Run Governor'}
           </Button>
         ) : undefined
       }
@@ -217,6 +228,40 @@ export const Decision: React.FC = () => {
                 retryDisabled={!canStart}
               />
             </Section>
+          )}
+
+          {/* 2b. PLAN IS MISSING EXPERIMENTS ADDED SINCE IT WAS GENERATED */}
+          {recommendation && missingFromPlan.length > 0 && !isRunActive(latestRun) && (
+            <div
+              role="alert"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                flexWrap: 'wrap',
+                padding: '0.875rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-warning-bg)',
+                border: '1px solid #FDE68A',
+                borderLeft: '5px solid var(--color-warning)',
+                fontSize: '0.875rem',
+                color: 'var(--color-text-main)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <AlertTriangle size={18} style={{ color: 'var(--color-warning)', flexShrink: 0 }} />
+                <span>
+                  <strong>This plan is out of date.</strong> Experiment{missingFromPlan.length > 1 ? 's' : ''}{' '}
+                  {missingFromPlan.map((item) => `${item.id} (${item.name})`).join(', ')}{' '}
+                  {missingFromPlan.length > 1 ? 'were' : 'was'} added after this recommendation. Re-run the Governor to
+                  include {missingFromPlan.length > 1 ? 'them' : 'it'}.
+                </span>
+              </div>
+              <Button variant="teal" size="sm" icon={<RefreshCw size={14} />} onClick={handleRunGovernor} disabled={!canStart}>
+                {starting ? 'Starting…' : 'Re-run Governor'}
+              </Button>
+            </div>
           )}
 
           {/* 3. GOVERNOR RECOMMENDATION BANNER */}
