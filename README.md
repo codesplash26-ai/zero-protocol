@@ -181,6 +181,10 @@ top of every page also shows what to do next.
 LLM-backed runs take roughly 10–60 seconds; the rule-based fallback responds in about
 a second.
 
+**Change the goal:** on the Decision page, *Change goal* offers templates or your own goal
+(text, time horizon and protected commitments). Saving records a new goal; run the
+Governor again to plan for it. **Reset demo** restores the original goal.
+
 **Try a change:** add experiments on the Experiments page (they are named D, E, …),
 then click *Re-run Governor* on the Decision page when it reports the plan is out of
 date. **Reset demo** in the header restores the starting point at any time.
@@ -220,8 +224,10 @@ cd frontend && npm ci && npm run lint && npm run build
   *Add Experiment* works.
 - The decision workspace stores only the recommended strategy (alternatives are not
   persisted); sensitivity analysis is not implemented.
-- If no strategy is feasible (e.g. budget exhausted), the Governor run ends as
-  `FAILED` with an explanation rather than a "no action" recommendation.
+- The Governor has no "no action" recommendation. When no remaining experiment fits
+  the budget, hours and traffic left (for example at the end of the demo story), the
+  dashboard says so and disables *Run Governor*; a run started anyway ends as
+  `FAILED`.
 - The dashboard polls for run progress instead of using server-sent events.
 - LLM outputs vary between runs; all numbers, feasibility and approvals are always
   decided by deterministic backend code.
@@ -255,4 +261,6 @@ Changes from the Proposal Phase design, with reasons.
 | **Landing page and guided demo.** A public landing page at `/` presents the problem, differentiation and features; the dashboard moved to `/overview`. A collapsible seven-step guide walks through the PulseBoard story and ticks steps off from backend state. | First-time users and judges could not tell what the product does or how to try it. |
 | **One-click demo reset** (`POST /api/v1/demo/reset`, only when `DEMO_MODE=true`). Restores the seeded starting point in one transaction; runs in progress are abandoned safely. | Lets anyone rerun the demo without a terminal. |
 | **Simplified workspace UI.** Sidebar grouped by the Governor loop (Decide, Govern, Adapt, Prove) with live badges for pending approvals, unanswered material events and running Governor runs; a journey strip on Overview (Goal → Recommendation → Approval → Action → Event → Replan); plain-language tooltips for jargon; IDs and solver data folded into *Technical details*; a *Present* mode with larger text; one main action per page. The landing page was redesigned to be more visual. Frontend only, derived from existing API data. | Testing showed the dashboard was dense and full of jargon for first-time users and demo audiences. |
+| **Founder-defined goals.** *Change goal* on the Decision page creates a new goal through the existing `POST /goals` (templates or custom text, horizon and protected commitments); the newest goal is the active one, and the app flags plans made for a previous goal until the Governor runs again. When no remaining experiment fits the resources left, the Decision page explains why and disables *Run Governor* instead of letting the run fail with provider errors. Frontend only. | The founder's goal was fixed to the seeded PulseBoard goal, so the Governor could not be pointed at a different objective. |
+| **Readable failures.** Failed Governor runs, API errors and page crashes show a plain-language cause and next step; raw codes and provider messages are kept in a collapsed *Raw error* / *Error details* section. Frontend only. | Failures showed internal error codes and provider responses that viewers could not act on. |
 | **Demo guidance.** Next-step bar on every page, *Re-run Governor* with an out-of-date-plan warning when experiments are added after a recommendation, approval queue limited to the current decision, and one-click Quick Events. Re-running uses the existing `POST /decisions`. | Testing showed first-time users could not tell what to do next or re-run the Governor after changes. |
