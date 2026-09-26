@@ -61,13 +61,14 @@ docker compose up --build
 
 | URL | What |
 |---|---|
-| http://localhost:5173 | Experiment Governor dashboard |
+| http://localhost:5173 | Landing page (problem, features, how it works) → *Try the live demo* opens the dashboard |
+| http://localhost:5173/overview | Experiment Governor dashboard |
 | http://localhost:8000/docs | Interactive API documentation |
 | http://localhost:8000/ready | Backend + database readiness |
 
 Database migrations and the PulseBoard demo seed run automatically when the backend
-starts. To reset to the initial demo state: `docker compose down -v`, then
-`docker compose up --build`.
+starts. To return to the initial demo state, click **Reset demo** in the app header
+(or run `docker compose down -v`, then `docker compose up --build`).
 
 ### Configuration (optional)
 
@@ -83,6 +84,7 @@ Everything has working defaults. To use LLM providers, create a `.env` file next
 | `INTERNAL_SERVICE_KEY` | `local-development-only` | Shared secret between agent and backend internal endpoints; change it for shared environments |
 | `FRONTEND_PORT` / `BACKEND_PORT` / `POSTGRES_PORT` | `5173` / `8000` / `5432` | Host ports |
 | `AGENT_POLL_INTERVAL_SECONDS` | `2` | How often the agent worker checks for queued runs |
+| `DEMO_MODE` | `true` in Compose (`false` otherwise) | Enables *Reset demo* (`POST /api/v1/demo/reset`); set `false` outside demos |
 
 ## Demo walkthrough (PulseBoard)
 
@@ -91,7 +93,9 @@ protected Enterprise SSO commitment), 10,000 sessions and a $2,000 approval
 threshold. Experiments: **A** pricing test ($600, 6h), **B** annual-plan checkout
 ($2,500, 24h, depends on A), **C** referral prototype ($1,800, 16h).
 
-The **Next step** bar at the top of every page always shows what to do next.
+Click **Try the live demo** on the landing page. A **Guided demo** panel lists the seven
+steps below and ticks each one off from live backend state; the **Next step** bar at the
+top of every page also shows what to do next.
 
 1. **Decision** → *Run Governor*. The Governor recommends starting **A** (a cheap
    prerequisite whose result decides whether B is worth funding).
@@ -110,7 +114,7 @@ a second.
 
 **Try a change:** add experiments on the Experiments page (they are named D, E, …),
 then click *Re-run Governor* on the Decision page when it reports the plan is out of
-date.
+date. **Reset demo** in the header restores the starting point at any time.
 
 ## Local checks
 
@@ -138,6 +142,8 @@ cd frontend && npm ci && npm run lint && npm run build
   the actor `founder`.
 - All actions are simulated, reversible state changes; the system never moves money or
   touches production systems.
+- *Reset demo* deletes all data and re-seeds PulseBoard; it is meant for demos only and is
+  disabled unless `DEMO_MODE=true`. The guided demo follows the seeded PulseBoard story.
 - Evidence comes from the seeded evidence store; live external search is not
   implemented.
 - Experiment-plan import: the backend accepts import jobs, but no interpreter
@@ -166,4 +172,6 @@ Changes from the Proposal Phase design, with reasons.
 | **`current_executable_experiment_id` not exposed.** The executable experiment is the first `now` entry of the recommendation and the approval's `experiment_id`. | Kept consistent with the implemented backend contract. |
 | **Replan result reported** as `REPLANNED` / `PRESERVED` instead of always `NEW_RECOMMENDATION`. | Matches the contract's decision-run result semantics. |
 | **Letter IDs for new experiments.** New experiments continue the seeded sequence (D, E, … Z, AA) instead of random `EXP-…` IDs; IDs remain server-generated and opaque to clients. | Keeps the demo story and approval labels readable. |
+| **Landing page and guided demo.** A public landing page at `/` presents the problem, differentiation and features; the dashboard moved to `/overview`. A collapsible seven-step guide walks through the PulseBoard story and ticks steps off from backend state. | First-time users and judges could not tell what the product does or how to try it. |
+| **One-click demo reset** (`POST /api/v1/demo/reset`, only when `DEMO_MODE=true`). Restores the seeded starting point in one transaction; runs in progress are abandoned safely. | Lets anyone rerun the demo without a terminal. |
 | **Demo guidance.** Next-step bar on every page, *Re-run Governor* with an out-of-date-plan warning when experiments are added after a recommendation, approval queue limited to the current decision, and one-click Quick Events. Re-running uses the existing `POST /decisions`. | Testing showed first-time users could not tell what to do next or re-run the Governor after changes. |
