@@ -449,6 +449,16 @@ export interface OverviewSnapshot {
 }
 
 // ---------------------------------------------------------------------------
+// Demo
+// ---------------------------------------------------------------------------
+
+/** POST /demo/reset (only when the backend runs with DEMO_MODE=true). */
+export interface DemoResetResult {
+  status: string;
+  state_version: number;
+}
+
+// ---------------------------------------------------------------------------
 // Experiment import (AI interpretation draft, then human confirmation)
 // ---------------------------------------------------------------------------
 

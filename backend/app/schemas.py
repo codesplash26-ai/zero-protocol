@@ -609,6 +609,11 @@ class DecisionRun(StrictModel):
     completed_at: datetime | None
 
 
+class DemoResetResult(StrictModel):
+    status: str
+    state_version: int = Field(ge=1)
+
+
 class DecisionRunClaim(StrictModel):
     run: DecisionRun | None
     goal_id: str | None

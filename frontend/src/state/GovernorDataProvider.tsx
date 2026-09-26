@@ -76,6 +76,14 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const trackRun = useCallback((run: DecisionRun) => setTrackedRun(run), []);
 
+  const resetDemo = useCallback(async () => {
+    await api.resetDemo();
+    // Runs followed before the reset belong to deleted decisions.
+    setTrackedRun(null);
+    setSettledRun(null);
+    await refresh();
+  }, [refresh]);
+
   const value = useMemo<GovernorData>(() => {
     const backendActiveRun = backendActiveRunId && poll.run?.id === backendActiveRunId ? poll.run : null;
     const decisionId =
@@ -99,6 +107,7 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
       error,
       refresh,
       trackRun,
+      resetDemo,
     };
   }, [
     overview,
@@ -113,6 +122,7 @@ export const GovernorDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     settledRun,
     refresh,
     trackRun,
+    resetDemo,
   ]);
 
   return <GovernorDataContext.Provider value={value}>{children}</GovernorDataContext.Provider>;

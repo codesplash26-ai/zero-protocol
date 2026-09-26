@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     internal_service_key: str = "local-development-only"
     import_max_bytes: int = 5 * 1024 * 1024
+    # Enables POST /demo/reset. Off by default; docker-compose.yml turns it on.
+    demo_mode: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

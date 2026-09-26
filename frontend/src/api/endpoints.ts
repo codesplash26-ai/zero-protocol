@@ -22,6 +22,7 @@ import type {
   DecisionCreateRequest,
   DecisionRun,
   DecisionWorkspace,
+  DemoResetResult,
   EvidenceItem,
   EvidenceQuality,
   Event,
@@ -137,6 +138,9 @@ export const api = {
   evaluateMateriality: (eventId: string, options?: WriteOptions) =>
     post<MaterialityResult>(`/events/${enc(eventId)}/materiality`, undefined, options),
   getMateriality: (eventId: string) => get<MaterialityResult>(`/events/${enc(eventId)}/materiality`),
+
+  // Demo (backend DEMO_MODE only)
+  resetDemo: () => post<DemoResetResult>('/demo/reset'),
 
   // Audit
   listAudit: (query: PageQuery & { decision_id?: string; state_version?: number; event_id?: string; query?: string } = {}) =>

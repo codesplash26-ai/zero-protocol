@@ -70,7 +70,7 @@ export function computeNextStep(
   if (unanswered) {
     return {
       tone: 'action',
-      message: `A material change was recorded: “${unanswered.description}” Replan so the Governor can adapt.`,
+      message: `A material change was recorded: “${unanswered.description}” Replan now so the Governor can adapt, or record further changes first.`,
       action: { label: 'Replan on Events', to: '/events' },
     };
   }

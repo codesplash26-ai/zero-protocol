@@ -1,21 +1,25 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, Building2, ChevronRight, User, ChevronsUpDown } from 'lucide-react';
+import { Menu, Building2, ChevronRight, User, ChevronsUpDown, Map as MapIcon, RotateCcw } from 'lucide-react';
+import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { IconButton } from '../ui/IconButton';
 import { useGovernorData } from '../../state/governorContext';
 
 export interface HeaderProps {
   onOpenMobileMenu: () => void;
+  guideOpen: boolean;
+  onToggleGuide: () => void;
+  onResetDemo: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, guideOpen, onToggleGuide, onResetDemo }) => {
   const location = useLocation();
   const { organization, isLoading } = useGovernorData();
 
   const getPageTitle = (path: string): string => {
     switch (path) {
-      case '/':
+      case '/overview':
         return 'Overview';
       case '/decision':
         return 'Decision';
@@ -116,6 +120,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
 
       {/* Right Area: Profile / Executive Context */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="eg-header-demo-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Button variant={guideOpen ? 'teal' : 'outline'} size="sm" icon={<MapIcon size={14} />} onClick={onToggleGuide}>
+            Demo guide
+          </Button>
+          <Button variant="outline" size="sm" icon={<RotateCcw size={14} />} onClick={onResetDemo} disabled={!organization}>
+            Reset demo
+          </Button>
+        </div>
         <Badge variant="teal" size="md">
           Founder Mode
         </Badge>
@@ -169,6 +181,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         }
         @media (max-width: 640px) {
           .eg-header-user-text {
+            display: none !important;
+          }
+        }
+        @media (max-width: 1100px) {
+          .eg-header-demo-actions {
             display: none !important;
           }
         }
