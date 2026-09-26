@@ -198,6 +198,26 @@ def _validate_dependencies(
     return [by_id[item] for item in dependency_ids]
 
 
+def experiment_letter(index: int) -> str:
+    """0 -> A, 25 -> Z, 26 -> AA, 27 -> AB ..."""
+    letters = ""
+    number = index + 1
+    while number:
+        number, remainder = divmod(number - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def _next_experiment_id(session: Session) -> str:
+    # Continue the seeded A, B, C naming. Callers already hold the organization
+    # state lock, and experiment IDs are a global key, so check all of them.
+    taken = set(session.scalars(select(ExperimentRecord.id)).all())
+    index = 0
+    while experiment_letter(index) in taken:
+        index += 1
+    return experiment_letter(index)
+
+
 def _create_experiment_record(
     session: Session,
     *,
@@ -211,7 +231,7 @@ def _create_experiment_record(
         dependency_ids=experiment.dependencies,
     )
     record = ExperimentRecord(
-        id=new_id("EXP"),
+        id=_next_experiment_id(session),
         organization_id=organization_id,
         name=experiment.name,
         cost_usd=experiment.cost_usd,

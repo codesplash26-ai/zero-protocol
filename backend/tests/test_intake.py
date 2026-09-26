@@ -93,7 +93,7 @@ def test_manual_experiment_creation_is_canonical_atomic_and_idempotent(client):
     assert first.status_code == 201
     assert first.json() == replay.json()
     experiment = first.json()
-    assert experiment["id"].startswith("EXP-")
+    assert experiment["id"] == "D"  # next letter after the seeded A, B, C
     assert experiment["dependencies"] == ["A"]
     assert experiment["status"] == "PROPOSED"
     assert experiment["outcome"] == "PENDING"
@@ -257,3 +257,29 @@ def test_confirm_with_unknown_dependency_rolls_back_job_and_state(client):
     assert client.get(f"/api/v1/experiment-imports/{queued['id']}").json()[
         "status"
     ] == "SUCCEEDED"
+
+
+def test_new_experiments_continue_the_letter_sequence(client):
+    from app.services.intake import experiment_letter
+
+    def add(name: str, key: str, version: int):
+        return client.post(
+            "/api/v1/experiments",
+            json={
+                "name": name,
+                "cost_usd": 100,
+                "engineering_hours": 1,
+                "traffic_required": 100,
+                "expected_state_version": version,
+            },
+            headers={"Idempotency-Key": key},
+        )
+
+    first = add("Smoke test", "letters-1", 1)
+    second = add("Tier launch", "letters-2", 2)
+
+    assert first.status_code == 201, first.text
+    assert (first.json()["id"], second.json()["id"]) == ("D", "E")
+    assert [experiment_letter(i) for i in (0, 25, 26, 27, 51, 52)] == [
+        "A", "Z", "AA", "AB", "AZ", "BA"
+    ]
