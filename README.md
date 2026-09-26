@@ -91,13 +91,15 @@ protected Enterprise SSO commitment), 10,000 sessions and a $2,000 approval
 threshold. Experiments: **A** pricing test ($600, 6h), **B** annual-plan checkout
 ($2,500, 24h, depends on A), **C** referral prototype ($1,800, 16h).
 
+The **Next step** bar at the top of every page always shows what to do next.
+
 1. **Decision** → *Run Governor*. The Governor recommends starting **A** (a cheap
    prerequisite whose result decides whether B is worth funding).
 2. **Approvals** → A is within the threshold, so no approval is needed → *Start A*
    (state v2).
-3. **Events** → *Simulate Event*: `EXPERIMENT_RESULT`, experiment A, `SUCCESS` (v3).
-4. **Events** → *Simulate Event*: `CAPACITY_CHANGE`, +18 hours, commitment Enterprise
-   SSO (v4). The backend classifies it as material.
+3. **Events** → Quick Events → *A succeeded* (v3).
+4. **Events** → Quick Events → *Enterprise SSO frees 18h* (v4). The backend classifies
+   it as material. (*Custom event…* opens the full event form.)
 5. *Trigger Governor Re-Plan* → the Governor now recommends **B**.
 6. **Approvals** → B costs $2,500 (above $2,000) → *Approve and start B* (v5).
 7. **Audit Trail** → the full goal → recommendation → approval → action → event →
@@ -105,6 +107,10 @@ threshold. Experiments: **A** pricing test ($600, 6h), **B** annual-plan checkou
 
 LLM-backed runs take roughly 10–60 seconds; the rule-based fallback responds in about
 a second.
+
+**Try a change:** add experiments on the Experiments page (they are named D, E, …),
+then click *Re-run Governor* on the Decision page when it reports the plan is out of
+date.
 
 ## Local checks
 
@@ -159,3 +165,5 @@ Changes from the Proposal Phase design, with reasons.
 | **Polling instead of server-sent events** for run progress. | Simpler and sufficient for the MVP. |
 | **`current_executable_experiment_id` not exposed.** The executable experiment is the first `now` entry of the recommendation and the approval's `experiment_id`. | Kept consistent with the implemented backend contract. |
 | **Replan result reported** as `REPLANNED` / `PRESERVED` instead of always `NEW_RECOMMENDATION`. | Matches the contract's decision-run result semantics. |
+| **Letter IDs for new experiments.** New experiments continue the seeded sequence (D, E, … Z, AA) instead of random `EXP-…` IDs; IDs remain server-generated and opaque to clients. | Keeps the demo story and approval labels readable. |
+| **Demo guidance.** Next-step bar on every page, *Re-run Governor* with an out-of-date-plan warning when experiments are added after a recommendation, approval queue limited to the current decision, and one-click Quick Events. Re-running uses the existing `POST /decisions`. | Testing showed first-time users could not tell what to do next or re-run the Governor after changes. |

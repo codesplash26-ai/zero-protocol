@@ -9,6 +9,7 @@ import { EventFeedItem } from '../components/events/EventFeedItem';
 import { MaterialEventAlertBanner } from '../components/events/MaterialEventAlertBanner';
 import { ReplanningFlowModal } from '../components/events/ReplanningFlowModal';
 import { SimulateEventModal, type SimulatedEventInput } from '../components/events/SimulateEventModal';
+import { EventPresets } from '../components/events/EventPresets';
 import { useGovernorData } from '../state/governorContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { isRunActive } from '../hooks/usePollRun';
@@ -310,6 +311,21 @@ export const Events: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      </Section>
+
+      {/* 2b. ONE-CLICK EVENT PRESETS */}
+      <Section>
+        <EventPresets
+          experiments={overview.experiments}
+          commitments={overview.commitments}
+          availableHours={organization.available_engineering_hours}
+          disabled={runInProgress || submitting}
+          onEmit={(event) => void handleEmitEvent(event)}
+          onCustom={() => {
+            setSimulateError(null);
+            setIsSimulateOpen(true);
+          }}
+        />
       </Section>
 
       {/* 3. EVENT STREAM FEED & FILTERS */}
