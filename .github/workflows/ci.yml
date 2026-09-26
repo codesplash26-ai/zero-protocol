@@ -20,16 +20,16 @@ jobs:
       - run: python -m ruff check backend
       - run: python -m pytest backend/tests -q
         env:
-          DATABASE_URL: sqlite+pysqlite:///:memory:
+          DATABASE_URL: "sqlite+pysqlite:///:memory:"
       - run: python -m compileall -q backend/app backend/tests
       - run: alembic upgrade head
         working-directory: backend
         env:
-          DATABASE_URL: sqlite+pysqlite:///./ci-migration.sqlite
+          DATABASE_URL: "sqlite+pysqlite:///./ci-migration.sqlite"
       - run: alembic check
         working-directory: backend
         env:
-          DATABASE_URL: sqlite+pysqlite:///./ci-migration.sqlite
+          DATABASE_URL: "sqlite+pysqlite:///./ci-migration.sqlite"
 
   frontend:
     runs-on: ubuntu-latest
