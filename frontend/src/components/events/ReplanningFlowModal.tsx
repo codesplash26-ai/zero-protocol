@@ -6,6 +6,9 @@ import { Button } from '../ui/Button';
 import type { DecisionRun, Event, MaterialityResult, Recommendation } from '../../types/contract';
 import { formatSignedHours } from '../../lib/format';
 import { isRunActive } from '../../hooks/usePollRun';
+import { useGovernorData } from '../../state/governorContext';
+import { describeRunFailure } from '../../lib/runFailure';
+import { TechnicalDetails } from '../ui/TechnicalDetails';
 import { RefreshCw, ShieldCheck, AlertTriangle, CheckCircle2, X, Loader2 } from 'lucide-react';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -51,6 +54,7 @@ export const ReplanningFlowModal: React.FC<ReplanningFlowModalProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const { overview } = useGovernorData();
   const active = isRunActive(run);
   const succeeded = run?.status === 'SUCCEEDED';
   const failed = run?.status === 'FAILED';
@@ -170,9 +174,18 @@ export const ReplanningFlowModal: React.FC<ReplanningFlowModalProps> = ({
               {run && active && `Evaluating strategies at state v${run.input_state_version}…`}
               {run && succeeded && `Completed: ${RESULT_LABELS[run.result ?? ''] ?? run.result ?? 'finished'}.`}
               {run && failed && (
-                <span style={{ color: 'var(--color-danger)' }}>
-                  {run.error?.code}: {run.error?.message}
-                </span>
+                <>
+                  <span style={{ color: 'var(--color-danger)' }}>
+                    <strong>{describeRunFailure(run, overview).title}</strong> {describeRunFailure(run, overview).message}
+                  </span>
+                  {run.error && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <TechnicalDetails label="Raw error">
+                        <strong>{run.error.code}:</strong> {run.error.message}
+                      </TechnicalDetails>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
